@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN     "workEnd" TEXT NOT NULL DEFAULT '18:00',
+ADD COLUMN     "workStart" TEXT NOT NULL DEFAULT '09:00';

@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  hash      String
+  phone     String?
+  shopName  String?  
+  tagline   String?  // 👈 Dükkan sloganı / alt yazısı
+  firstName String?
+  lastName  String?
+  plan      String   @default("FREE")
+  workStart String   @default("09:00")
+  workEnd   String   @default("18:00")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notes     String?  // Dükkan sahibinin özel notları
+  messageCredits Int @default(50)
+  
+  reviews      Review[]
+  galleryItems GalleryItem[]
+  customers    Customer[]
+  services     Service[]
+  appointments Appointment[]
+  staff        Staff[]
+  gallery      Gallery[]
+  closures     ShopClosure[] 
+  
+  @@map("users")
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String
+  notes     String?
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  appointments Appointment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("customers")
+}
+
+model Service {
+  id        Int      @id @default(autoincrement())
+  name      String
+  duration  Int      
+  price     Decimal
+  isActive  Boolean  @default(true) 
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  appointments Appointment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("services")
+}
+
+model Staff {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String   
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  appointments Appointment[]
+  leaves       StaffLeave[] 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("staffs")
+}
+
+model Appointment {
+  id        Int      @id @default(autoincrement())
+  dateTime  DateTime
+  status    String   @default("PENDING") 
+  actionToken String? @unique            
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+  serviceId  Int
+  service    Service  @relation(fields: [serviceId], references: [id])
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  staffId    Int?
+  staff      Staff?   @relation(fields: [staffId], references: [id])
+  isReminderSent Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("appointments")
+}
+
+model ShopClosure {
+  id        Int      @id @default(autoincrement())
+  date      String   
+  reason    String?
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  @@map("shop_closures")
+}
+
+model StaffLeave {
+  id        Int      @id @default(autoincrement())
+  date      String   
+  staffId   Int
+  staff     Staff    @relation(fields: [staffId], references: [id])
+  @@map("staff_leaves")
+}
+
+model Review {
+  id           Int      @id @default(autoincrement())
+  rating       Int      // 1 ile 5 arası puan
+  comment      String?  // Müşteri yorumu
+  customerName String   // Yorumu yapan kişi
+  userId       Int      // Hangi dükkana yapıldı
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+  @@map("reviews")
+}
+
+model GalleryItem {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String   
+  modelName String?
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  @@map("gallery_items")
+}
+
+model Gallery {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+}
