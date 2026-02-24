@@ -1,6 +1,7 @@
-FROM node:18
+# Node 20 sürümünü kullanıyoruz (Hız ve uyumluluk için)
+FROM node:20
 
-# WhatsApp motoru (Chrome) için gereken tüm kütüphaneler
+# WhatsApp motoru (Chrome) için gereken kütüphaneler
 RUN apt-get update && apt-get install -y \
     chromium \
     fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
@@ -9,7 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Paketleri kur
+# Bağımlılıkları kur
 COPY package*.json ./
 RUN npm install
 
@@ -18,11 +19,11 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-# Puppeteer ayarları
+# Puppeteer için ortam değişkenleri
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 EXPOSE 3001
 
-# Çalıştırma komutu (Eğer dist/main değilse burayı güncelleyeceğiz)
-CMD ["node", "dist/main"]
+# DOSYA YOLUNU DÜZELTTİK: Artık doğrudan dist/src/main.js'e bakıyor
+CMD ["node", "dist/src/main.js"]
