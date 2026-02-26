@@ -13,7 +13,13 @@ export class NotificationService {
 
   // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT ---
   async initializeClient(shopId: number) {
-    if (this.sockets.has(shopId)) return;
+    // 🚀 DÜZELTME 1: ANTİ-SPAM KİLİDİ
+    // Eğer halihazırda bağlanmaya çalışıyorsa veya zaten bağlıysa, frontend'den gelen arka arkaya istekleri reddet!
+    const currentStatus = this.statuses.get(shopId);
+    if (currentStatus === 'INITIALIZING' || currentStatus === 'CONNECTED' || this.sockets.has(shopId)) {
+        console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor, çakışmayı önlemek için yeni istek engellendi.`);
+        return;
+    }
 
     this.statuses.set(shopId, 'INITIALIZING');
     console.log(`[Mağaza ${shopId}] RAM Dostu Baileys WhatsApp motoru çalıştırılıyor...`);
@@ -24,8 +30,6 @@ export class NotificationService {
     const sock = makeWASocket({
       auth: state,
       printQRInTerminal: false, 
-      // 🚀 DÜZELTME 1: Özel ismi sildik, WhatsApp varsayılan imzayı kabul edip bizi engellemeyecek.
-      // 🚀 DÜZELTME 2: 'silent' yerine 'error' yaptık. Sadece ölümcül hataları görüp RAM'i yine koruyacağız.
       logger: pino({ level: 'error' }) as any, 
       syncFullHistory: false, 
       generateHighQualityLinkPreview: false, 
@@ -48,12 +52,12 @@ export class NotificationService {
         const statusCode = error?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         
-        // 🚀 DÜZELTME 3: Gizli hatayı gün yüzüne çıkarıyoruz!
         console.error(`[Mağaza ${shopId}] ❌ Bağlantı koptu. Hata Kodu: ${statusCode} | Mesaj: ${error?.message}`);
 
-        // Eğer sorun bozuk oturum veya reddedilmeyse (401, 403, 500), klasörü silip temiz bir sayfa aç.
-        if (statusCode === 401 || statusCode === 403 || statusCode === 500) {
-           console.log(`[Mağaza ${shopId}] Bozuk oturum dosyaları temizleniyor...`);
+        // 🚀 DÜZELTME 2: 405 HATASI (ÇAKIŞMA) EKLENDİ!
+        // Eğer dosyalar bozulduysa (401, 403, 405, 500) klasörü tamamen silip tertemiz bir sayfa açıyoruz.
+        if (statusCode === 401 || statusCode === 403 || statusCode === 405 || statusCode === 500) {
+           console.log(`[Mağaza ${shopId}] Bozuk oturum dosyaları (Hata ${statusCode}) acımasızca temizleniyor...`);
            if (fs.existsSync(authFolder)) {
              fs.rmSync(authFolder, { recursive: true, force: true });
            }
@@ -61,7 +65,8 @@ export class NotificationService {
         
         if (shouldReconnect) {
           this.sockets.delete(shopId);
-          // 🚀 DÜZELTME 4: Sonsuz döngüyü engellemek için motora 3 saniye soğuma/dinlenme molası verdik.
+          this.statuses.set(shopId, 'DISCONNECTED'); // Kilidi açıyoruz ki yeniden deneyebilsin
+          
           console.log(`[Mağaza ${shopId}] 3 saniye sonra yeniden denenecek...`);
           setTimeout(() => {
               this.initializeClient(shopId); 
