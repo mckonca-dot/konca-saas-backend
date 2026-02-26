@@ -1,60 +1,76 @@
 import { Injectable } from '@nestjs/common';
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
+import * as fs from 'fs';
 
 @Injectable()
 export class NotificationService {
-  private clients = new Map<number, Client>();
+  private sockets = new Map<number, any>();
   private qrCodes = new Map<number, string>();
   private statuses = new Map<number, string>(); // 'DISCONNECTED', 'INITIALIZING', 'QR_READY', 'CONNECTED'
 
-  // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT ---
+  // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT (BAILEYS İLE YENİLENDİ) ---
   async initializeClient(shopId: number) {
-    if (this.clients.has(shopId)) return;
+    if (this.sockets.has(shopId)) return;
 
     this.statuses.set(shopId, 'INITIALIZING');
-    console.log(`[Shop ${shopId}] WhatsApp motoru çalıştırılıyor...`);
+    console.log(`[Shop ${shopId}] RAM Dostu Baileys WhatsApp motoru çalıştırılıyor...`);
 
-    const client = new Client({
-      authStrategy: new LocalAuth({ clientId: `shop_${shopId}` }), 
-      puppeteer: {
-        headless: true,
-        // 👇 İŞTE EKSİK OLAN SİHİRLİ SATIR (Docker'daki hafif Chrome'u kullanmasını sağlar)
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage', 
-          '--disable-accelerated-2d-canvas', 
-          '--no-first-run', 
-          '--no-zygote', 
-          '--single-process', 
-          '--disable-gpu' 
-        ]
+    // Dükkana özel oturum klasörü (Her dükkanın verisi ayrı tutulur)
+    const authFolder = `./auth_info/shop_${shopId}`;
+    const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false, // QR'ı terminalde değil sitemizde göstereceğiz
+      browser: ['Konca SaaS', 'Chrome', '1.0.0'], // WhatsApp web'de görünecek cihaz adı
+    });
+
+    // Oturum bilgilerini otomatik kaydet
+    sock.ev.on('creds.update', saveCreds);
+
+    // Bağlantı durumunu dinle
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      // QR Kod gelirse frontend'e gönderilmek üzere kaydet
+      if (qr) {
+        const qrDataUrl = await qrcode.toDataURL(qr);
+        this.qrCodes.set(shopId, qrDataUrl);
+        this.statuses.set(shopId, 'QR_READY');
+        console.log(`[Shop ${shopId}] QR Kod hazır! Panelden okutulması bekleniyor...`);
+      }
+
+      // Bağlantı koparsa veya çıkış yapılırsa
+      if (connection === 'close') {
+        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+        console.log(`[Shop ${shopId}] Bağlantı kapandı. Yeniden bağlanılıyor mu:`, shouldReconnect);
+        
+        if (shouldReconnect) {
+          // Ufak bir kopmaysa tekrar dene
+          this.sockets.delete(shopId);
+          this.initializeClient(shopId); 
+        } else {
+          // Kullanıcı kendi çıkış yaptıysa temizlik yap
+          this.statuses.set(shopId, 'DISCONNECTED');
+          this.sockets.delete(shopId);
+          this.qrCodes.delete(shopId);
+          if (fs.existsSync(authFolder)) {
+            fs.rmSync(authFolder, { recursive: true, force: true });
+          }
+        }
+      } 
+      
+      // Bağlantı başarılıysa
+      else if (connection === 'open') {
+        this.statuses.set(shopId, 'CONNECTED');
+        this.qrCodes.delete(shopId);
+        console.log(`[Shop ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI (HAFİF MOD)!`);
       }
     });
 
-    client.on('qr', async (qr) => {
-      const qrDataUrl = await qrcode.toDataURL(qr);
-      this.qrCodes.set(shopId, qrDataUrl);
-      this.statuses.set(shopId, 'QR_READY');
-      console.log(`[Shop ${shopId}] QR Kod hazır! Panelden okutulması bekleniyor...`);
-    });
-
-    client.on('ready', () => {
-      this.statuses.set(shopId, 'CONNECTED');
-      this.qrCodes.delete(shopId);
-      console.log(`[Shop ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI!`);
-    });
-
-    client.on('disconnected', (reason) => {
-      this.statuses.set(shopId, 'DISCONNECTED');
-      this.clients.delete(shopId);
-      console.log(`[Shop ${shopId}] ❌ WhatsApp bağlantısı koptu:`, reason);
-    });
-
-    await client.initialize();
-    this.clients.set(shopId, client);
+    this.sockets.set(shopId, sock);
   }
 
   // --- 2. DURUM VE QR KOD SORGULAMA ---
@@ -67,38 +83,41 @@ export class NotificationService {
 
   // --- 3. ÇIKIŞ YAP (BAĞLANTIYI KES) ---
   async logout(shopId: number) {
-    const client = this.clients.get(shopId);
-    if (client) {
+    const sock = this.sockets.get(shopId);
+    if (sock) {
       try {
-        await client.logout();
-        await client.destroy();
+        await sock.logout();
       } catch (e) { }
-      this.clients.delete(shopId);
+      this.sockets.delete(shopId);
       this.qrCodes.delete(shopId);
       this.statuses.set(shopId, 'DISCONNECTED');
-      console.log(`[Shop ${shopId}] Çıkış yapıldı.`);
+      
+      const authFolder = `./auth_info/shop_${shopId}`;
+      if (fs.existsSync(authFolder)) {
+        fs.rmSync(authFolder, { recursive: true, force: true });
+      }
+      console.log(`[Shop ${shopId}] Çıkış yapıldı ve temizlendi.`);
     }
   }
 
   // --- 4. MESAJ GÖNDERME MOTORU ---
   async sendMessage(shopId: number, to: string, message: string) {
-    const client = this.clients.get(shopId);
+    const sock = this.sockets.get(shopId);
     
-    // Eğer o dükkan WhatsApp'ını bağlamamışsa mesaj gitmez, sistemi çökertmez.
-    if (!client || this.statuses.get(shopId) !== 'CONNECTED') {
+    if (!sock || this.statuses.get(shopId) !== 'CONNECTED') {
       console.log(`[Shop ${shopId}] WhatsApp bağlı değil, mesaj gönderilemedi.`);
       return false;
     }
 
-    // Telefon numarasını WhatsApp formatına çevir (Örn: 90531... -> 90531...@c.us)
     let formattedNumber = to.replace(/\D/g, '');
-    if (formattedNumber.length === 10) formattedNumber = '90' + formattedNumber; // Başında 0 yoksa 90 ekle
+    if (formattedNumber.length === 10) formattedNumber = '90' + formattedNumber; 
     if (formattedNumber.length === 11 && formattedNumber.startsWith('0')) formattedNumber = '90' + formattedNumber.substring(1);
     
-    const chatId = formattedNumber + '@c.us';
+    // Baileys'te uzantı @s.whatsapp.net şeklindedir (Eski kütüphanedeki @c.us yerine)
+    const jid = formattedNumber + '@s.whatsapp.net';
 
     try {
-      await client.sendMessage(chatId, message);
+      await sock.sendMessage(jid, { text: message });
       console.log(`[Shop ${shopId}] 📨 Mesaj gönderildi -> ${formattedNumber}`);
       return true;
     } catch (error) {
