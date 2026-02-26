@@ -16,19 +16,20 @@ export class NotificationService {
     console.log(`[Shop ${shopId}] WhatsApp motoru çalıştırılıyor...`);
 
     const client = new Client({
-      authStrategy: new LocalAuth({ clientId: `shop_${shopId}` }), // Her dükkanın oturumu ayrı kaydedilir
+      authStrategy: new LocalAuth({ clientId: `shop_${shopId}` }), 
       puppeteer: {
         headless: true,
-        // 🚀 İŞTE DİYET MODU: RAM kullanımını minimuma indiren efsanevi ayarlar!
+        // 👇 İŞTE EKSİK OLAN SİHİRLİ SATIR (Docker'daki hafif Chrome'u kullanmasını sağlar)
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage', // Docker/Render için en kritik RAM kurtarıcı!
-          '--disable-accelerated-2d-canvas', // GPU kullanımını kapatır
-          '--no-first-run', // İlk açılış animasyonlarını siler
-          '--no-zygote', // Ekstra işlemlerin açılmasını engeller
-          '--single-process', // Tüm işlemleri tek çekirdekte yapar (RAM dostu)
-          '--disable-gpu' // Ekran kartını tamamen kapatır
+          '--disable-dev-shm-usage', 
+          '--disable-accelerated-2d-canvas', 
+          '--no-first-run', 
+          '--no-zygote', 
+          '--single-process', 
+          '--disable-gpu' 
         ]
       }
     });
