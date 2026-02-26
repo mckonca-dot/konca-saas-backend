@@ -3,6 +3,7 @@ import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeys
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
 import * as fs from 'fs';
+import pino from 'pino'; // RAM canavarını susturacak kütüphanemiz
 
 @Injectable()
 export class NotificationService {
@@ -10,7 +11,7 @@ export class NotificationService {
   private qrCodes = new Map<number, string>();
   private statuses = new Map<number, string>(); // 'DISCONNECTED', 'INITIALIZING', 'QR_READY', 'CONNECTED'
 
-  // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT (BAILEYS İLE YENİLENDİ) ---
+  // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT (BAILEYS + MAKSİMUM DİYET MODU) ---
   async initializeClient(shopId: number) {
     if (this.sockets.has(shopId)) return;
 
@@ -25,6 +26,11 @@ export class NotificationService {
       auth: state,
       printQRInTerminal: false, // QR'ı terminalde değil sitemizde göstereceğiz
       browser: ['Konca SaaS', 'Chrome', '1.0.0'], // WhatsApp web'de görünecek cihaz adı
+      
+      // 🚀 İŞTE SUNUCUYU ÇÖKMEKTEN KURTARAN O SİHİRLİ RAM AYARLARI:
+      logger: pino({ level: 'silent' }) as any, // Loglamayı tamamen kapatır (RAM'i korur)
+      syncFullHistory: false, // Geçmiş mesajları indirmeyi engeller (Anlık yüklenmeyi önler)
+      generateHighQualityLinkPreview: false, // Link önizlemelerini kapatır
     });
 
     // Oturum bilgilerini otomatik kaydet
@@ -113,7 +119,7 @@ export class NotificationService {
     if (formattedNumber.length === 10) formattedNumber = '90' + formattedNumber; 
     if (formattedNumber.length === 11 && formattedNumber.startsWith('0')) formattedNumber = '90' + formattedNumber.substring(1);
     
-    // Baileys'te uzantı @s.whatsapp.net şeklindedir (Eski kütüphanedeki @c.us yerine)
+    // Baileys'te uzantı @s.whatsapp.net şeklindedir
     const jid = formattedNumber + '@s.whatsapp.net';
 
     try {
