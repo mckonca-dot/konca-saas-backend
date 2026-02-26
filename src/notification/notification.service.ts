@@ -19,7 +19,17 @@ export class NotificationService {
       authStrategy: new LocalAuth({ clientId: `shop_${shopId}` }), // Her dükkanın oturumu ayrı kaydedilir
       puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        // 🚀 İŞTE DİYET MODU: RAM kullanımını minimuma indiren efsanevi ayarlar!
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage', // Docker/Render için en kritik RAM kurtarıcı!
+          '--disable-accelerated-2d-canvas', // GPU kullanımını kapatır
+          '--no-first-run', // İlk açılış animasyonlarını siler
+          '--no-zygote', // Ekstra işlemlerin açılmasını engeller
+          '--single-process', // Tüm işlemleri tek çekirdekte yapar (RAM dostu)
+          '--disable-gpu' // Ekran kartını tamamen kapatır
+        ]
       }
     });
 
