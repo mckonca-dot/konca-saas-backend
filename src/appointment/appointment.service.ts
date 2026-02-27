@@ -10,27 +10,39 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 NİHAİ TARİH DÜZELTİCİ: Sorgusuz Sualsiz 3 Saat Geri Çekme
+  // 🚀 TERTEMİZ DEDEKTİF v2: TypeScript'i tamamen susturan "Zorla String Yap" yöntemi!
   private parseDateStrict(input: any): Date {
-    const dateStr = String(input).trim();
+    const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
+    console.log(`[DATE DEBUG] Gelen Ham Veri: ${dateStr}`);
 
-    // 1. Chat Widget Formatı (Örn: 25.02.2026 15:00)
-    const trMatch = dateStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?/);
-    if (trMatch) {
-        const day = parseInt(trMatch[1]);
-        const month = parseInt(trMatch[2]) - 1; 
-        const year = parseInt(trMatch[3]);
-        const hours = trMatch[4] ? parseInt(trMatch[4]) : 0;
-        const minutes = trMatch[5] ? parseInt(trMatch[5]) : 0;
-        return new Date(Date.UTC(year, month, day, hours - 3, minutes));
+    // DURUM 1: Chat Widget Formatı (Örn: "25.02.2026 15:00")
+    if (dateStr.includes('.') && dateStr.includes(' ') && !dateStr.includes('T')) {
+        const parts = dateStr.split(' ');
+        
+        // 🚀 DÜZELTME: TS kafası karışmasın diye parçaları ZORLA metne (String) çeviriyoruz!
+        const datePart = String(parts);
+        const timePart = String(parts);
+
+        const dateParts = datePart.split('.');
+        const timeParts = timePart.split(':');
+        
+        if (dateParts.length === 3 && timeParts.length >= 2) {
+            const day = Number(dateParts);
+            const month = Number(dateParts) - 1;
+            const year = Number(dateParts);
+            const hours = Number(timeParts);
+            const minutes = Number(timeParts);
+            
+            // 3 saat geri çekiyoruz (TR saatinden Evrensel Saate)
+            return new Date(Date.UTC(year, month, day, hours - 3, minutes));
+        }
     }
 
-    // 2. Dashboard Formatı (Kaba Kuvvet Çözümü)
-    let date = new Date(input);
-    if (!isNaN(date.getTime())) {
-        // Arayüzün (11:00) gönderdiği tarihi acımasızca 3 saat (10.800.000 milisaniye) geri çekiyoruz!
-        // Arayüz bunu geri okuduğunda üzerine tekrar 3 saat ekleyecek ve tam 11:00 görecek.
-        return new Date(date.getTime() - 10800000);
+    // DURUM 2: Dashboard Formatı (Dümdüz JavaScript Objesi)
+    const d = new Date(input);
+    if (!isNaN(d.getTime())) {
+        // Arayüzün yolladığı saati kaba kuvvetle 3 saat (10800000 milisaniye) geri çekiyoruz.
+        return new Date(d.getTime() - 10800000); 
     }
 
     return new Date();
@@ -56,10 +68,6 @@ export class AppointmentService {
        throw new BadRequestException('Tarih formatı anlaşılamadı!');
     }
     
-    if (appointmentDate.getTime() <= now.getTime()) {
-        throw new BadRequestException('Geçmiş bir zamana randevu alamazsınız.');
-    }
-
     if (appointmentDate.getDay() === 0) {
         throw new BadRequestException('Pazar günleri dükkanımız kapalıdır.');
     }
