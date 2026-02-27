@@ -10,13 +10,11 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 ZIRHLI TARİH DEDEKTİFİ: Kaçış kapıları kapatıldı!
+  // 🚀 NİHAİ TARİH DÜZELTİCİ: Sorgusuz Sualsiz 3 Saat Geri Çekme
   private parseDateStrict(input: any): Date {
-    // Önceki hatanın sebebi burasıydı. Artık Date objesi gelse bile onu zorla string'e çevirip matematiği uygulayacağız!
-    const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
-    console.log(`🔍 İncelenen Tarih: ${dateStr}`);
+    const dateStr = String(input).trim();
 
-    // DURUM 1: Chat Widget Formatı (Örn: 25.02.2026 15:00)
+    // 1. Chat Widget Formatı (Örn: 25.02.2026 15:00)
     const trMatch = dateStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?/);
     if (trMatch) {
         const day = parseInt(trMatch[1]);
@@ -27,21 +25,15 @@ export class AppointmentService {
         return new Date(Date.UTC(year, month, day, hours - 3, minutes));
     }
 
-    // DURUM 2: Dashboard Formatı (Örn: 2026-02-25T09:00:00.000Z)
-    // Ne gelirse gelsin 09'u yakalar ve 3 saat geri çeker.
-    const isoMatch = dateStr.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:T|\s+)(\d{1,2}):(\d{1,2})/);
-    if (isoMatch) {
-        const year = parseInt(isoMatch[1]);
-        const month = parseInt(isoMatch[2]) - 1; 
-        const day = parseInt(isoMatch[3]);
-        const hours = parseInt(isoMatch[4]);
-        const minutes = parseInt(isoMatch[5]);
-        return new Date(Date.UTC(year, month, day, hours - 3, minutes));
+    // 2. Dashboard Formatı (Kaba Kuvvet Çözümü)
+    let date = new Date(input);
+    if (!isNaN(date.getTime())) {
+        // Arayüzün (11:00) gönderdiği tarihi acımasızca 3 saat (10.800.000 milisaniye) geri çekiyoruz!
+        // Arayüz bunu geri okuduğunda üzerine tekrar 3 saat ekleyecek ve tam 11:00 görecek.
+        return new Date(date.getTime() - 10800000);
     }
 
-    // Eğer format çok garipse bile 3 saat geriye çekmeyi unutma!
-    const fallbackDate = new Date(input);
-    return new Date(fallbackDate.getTime() - (3 * 60 * 60 * 1000));
+    return new Date();
   }
 
   // --- 1. Randevuları Listele ---
