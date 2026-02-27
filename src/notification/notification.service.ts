@@ -13,8 +13,6 @@ export class NotificationService {
 
   // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT ---
   async initializeClient(shopId: number) {
-    // 🚀 DÜZELTME 1: ANTİ-SPAM KİLİDİ
-    // Eğer halihazırda bağlanmaya çalışıyorsa veya zaten bağlıysa, frontend'den gelen arka arkaya istekleri reddet!
     const currentStatus = this.statuses.get(shopId);
     if (currentStatus === 'INITIALIZING' || currentStatus === 'CONNECTED' || this.sockets.has(shopId)) {
         console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor, çakışmayı önlemek için yeni istek engellendi.`);
@@ -50,22 +48,28 @@ export class NotificationService {
       if (connection === 'close') {
         const error = (lastDisconnect?.error as Boom);
         const statusCode = error?.output?.statusCode;
-        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         
         console.error(`[Mağaza ${shopId}] ❌ Bağlantı koptu. Hata Kodu: ${statusCode} | Mesaj: ${error?.message}`);
 
-        // 🚀 DÜZELTME 2: 405 HATASI (ÇAKIŞMA) EKLENDİ!
-        // Eğer dosyalar bozulduysa (401, 403, 405, 500) klasörü tamamen silip tertemiz bir sayfa açıyoruz.
-        if (statusCode === 401 || statusCode === 403 || statusCode === 405 || statusCode === 500) {
-           console.log(`[Mağaza ${shopId}] Bozuk oturum dosyaları (Hata ${statusCode}) acımasızca temizleniyor...`);
+        // 🚀 DÜZELTME: EĞER WHATSAPP BİZİ REDDEDİYORSA DÖNGÜYÜ TAMAMEN KIR!
+        const isFatal = statusCode === 401 || statusCode === 403 || statusCode === 405 || statusCode === 500;
+
+        if (isFatal) {
+           console.log(`[Mağaza ${shopId}] Ölümcül hata (${statusCode}). Dosyalar siliniyor ve otomatik bağlanma DURDURULUYOR.`);
            if (fs.existsSync(authFolder)) {
              fs.rmSync(authFolder, { recursive: true, force: true });
            }
+           // Sistemi tamamen boşalt ve frontend'den yeni bir tık bekle!
+           this.statuses.set(shopId, 'DISCONNECTED');
+           this.sockets.delete(shopId);
+           this.qrCodes.delete(shopId);
+           return; // DÖNGÜYÜ TAM BURADA KESİYORUZ, YENİDEN DENEMEYECEK!
         }
         
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) {
           this.sockets.delete(shopId);
-          this.statuses.set(shopId, 'DISCONNECTED'); // Kilidi açıyoruz ki yeniden deneyebilsin
+          this.statuses.set(shopId, 'DISCONNECTED'); 
           
           console.log(`[Mağaza ${shopId}] 3 saniye sonra yeniden denenecek...`);
           setTimeout(() => {
