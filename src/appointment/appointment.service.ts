@@ -10,10 +10,10 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 ZIRHLI TARİH DEDEKTİFİ: Frontend ne yollarsa yollasın, içindeki rakamları söküp TR saatine (UTC+3) zorlar!
+  // 🚀 ZIRHLI TARİH DEDEKTİFİ: Kaçış kapıları kapatıldı!
   private parseDateStrict(input: any): Date {
-    if (input instanceof Date) return input;
-    const dateStr = String(input).trim();
+    // Önceki hatanın sebebi burasıydı. Artık Date objesi gelse bile onu zorla string'e çevirip matematiği uygulayacağız!
+    const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
     console.log(`🔍 İncelenen Tarih: ${dateStr}`);
 
     // DURUM 1: Chat Widget Formatı (Örn: 25.02.2026 15:00)
@@ -27,22 +27,21 @@ export class AppointmentService {
         return new Date(Date.UTC(year, month, day, hours - 3, minutes));
     }
 
-    // DURUM 2: Dashboard Formatı (Örn: 2026-02-25T16:00...)
+    // DURUM 2: Dashboard Formatı (Örn: 2026-02-25T09:00:00.000Z)
+    // Ne gelirse gelsin 09'u yakalar ve 3 saat geri çeker.
     const isoMatch = dateStr.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:T|\s+)(\d{1,2}):(\d{1,2})/);
     if (isoMatch) {
         const year = parseInt(isoMatch[1]);
         const month = parseInt(isoMatch[2]) - 1; 
         const day = parseInt(isoMatch[3]);
-        const hours = parseInt(isoMatch[4]); // 16:00 seçildiyse burası tam olarak 16 olur
+        const hours = parseInt(isoMatch[4]);
         const minutes = parseInt(isoMatch[5]);
-        
-        // Saatin Türkiye saati (UTC+3) olduğunu biliyoruz. 
-        // Veritabanına düzgün kaydolması için 3 saat çıkarıp Evrensel Saate (13:00) çeviriyoruz.
-        // Arayüz bunu geri okuduğunda tam olarak 16:00 olarak gösterecek!
         return new Date(Date.UTC(year, month, day, hours - 3, minutes));
     }
 
-    return new Date(input);
+    // Eğer format çok garipse bile 3 saat geriye çekmeyi unutma!
+    const fallbackDate = new Date(input);
+    return new Date(fallbackDate.getTime() - (3 * 60 * 60 * 1000));
   }
 
   // --- 1. Randevuları Listele ---
@@ -54,7 +53,7 @@ export class AppointmentService {
     });
   }
 
-  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VERSİYON 🚀) ---
+  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VERSİYON) ---
   async createAppointment(userId: number, data: any) {
     const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote } = data;
 
