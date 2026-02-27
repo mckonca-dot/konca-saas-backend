@@ -31,8 +31,12 @@ export class AppointmentService {
             minutes = parseInt(timeMatch[2]);
         }
 
-        const trDate = new Date(year, month, day, hours, minutes);
-        console.log(`✅ TR Formatı Algılandı -> Çevrildi: ${trDate.toLocaleString('tr-TR')}`);
+        // 🚀 DÜZELTME 1: SAAT KAYMASINI ÖNLEYEN KOD
+        // Render UTC'de çalıştığı için Türkiye'den (UTC+3) gelen 16:00 saatini
+        // gerçek evrensel saat olan 13:00'a (hours - 3) çevirip veritabanına kaydediyoruz.
+        // Böylece arayüz (frontend) bu saati tekrar çektiğinde tam 16:00 olarak görecek!
+        const trDate = new Date(Date.UTC(year, month, day, hours - 3, minutes));
+        console.log(`✅ TR Formatı Algılandı -> Evrensel Saate Çevrildi: ${trDate.toISOString()}`);
         return trDate;
     }
 
@@ -48,7 +52,7 @@ export class AppointmentService {
     });
   }
 
-  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VERSİYON 🚀) ---
+  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VERSİYON) ---
   async createAppointment(userId: number, data: any) {
     const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote } = data;
 
@@ -70,7 +74,6 @@ export class AppointmentService {
     const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
     if (!service) throw new BadRequestException('Hizmet bulunamadı.');
 
-    // Müşteri bul veya dışarıdan gelen isim/telefonu kullan
     let customer: any = null;
     if (customerId) {
        customer = await this.prisma.customer.findUnique({ where: { id: Number(customerId) } });
@@ -83,11 +86,10 @@ export class AppointmentService {
         staff = await this.prisma.staff.findUnique({ where: { id: Number(staffId) } });
     }
 
-    // 🚀 RANDEVUYU DİREKT "CONFIRMED" (ONAYLI) OLARAK OLUŞTURUYORUZ
     const appointment = await this.prisma.appointment.create({
       data: {
         dateTime: appointmentDate,
-        status: 'CONFIRMED', // Direkt onaylı kaydediliyor
+        status: 'CONFIRMED', 
         note: customerNote || "",
         ...(customerId && { customer: { connect: { id: Number(customerId) } } }),
         service: { connect: { id: Number(serviceId) } },
@@ -97,11 +99,12 @@ export class AppointmentService {
       include: { customer: true, service: true, staff: true }
     });
 
+    // 🚀 DÜZELTME 2: WhatsApp'a mesaj atarken UTC saati değil, İstanbul saatini yazdırıyoruz!
     const dateStr = appointmentDate.toLocaleString('tr-TR', {
+        timeZone: 'Europe/Istanbul',
         day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
     });
 
-    // 1. Personele/Patrona Gidecek Bilgi Mesajı
     const patronMesaj = 
       `🔔 *YENİ RANDEVU EKLENDİ*\n\n` +
       `📞 *Müşteri:* ${cName}\n` +
@@ -111,12 +114,9 @@ export class AppointmentService {
       (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
       `Sistem tarafından otomatik onaylanıp takvime eklendi.`;
 
-    // Personelin kendi telefonu varsa ona gider, yoksa default numaraya
     const targetPhone = staff?.phone ? staff.phone : '905319485682'; 
-    // YENİ WHATSAPP MOTORU: sendMessage(hangi_dukkan_id, kime, mesaj)
     await this.notifier.sendMessage(userId, targetPhone, patronMesaj); 
 
-    // 2. Müşteriye Gidecek Anında Onay Mesajı
     if (cPhone) {
       const musteriMesaj = `Sayın ${cName}, ${dateStr} tarihindeki ${service.name} randevunuz başarıyla oluşturulmuş ve onaylanmıştır. Sizi bekliyoruz!`;
       await this.notifier.sendMessage(userId, cPhone, musteriMesaj);
@@ -130,7 +130,7 @@ export class AppointmentService {
     return this.prisma.appointment.delete({ where: { id: Number(id) } });
   }
 
-  // --- 4. Güncelleme ve İPTAL ETME (AÇIKLAMALI) ---
+  // --- 4. Güncelleme ve İPTAL ETME ---
   async updateAppointment(id: number, data: any) {
     const appointment = await this.prisma.appointment.update({
       where: { id: Number(id) },
@@ -139,17 +139,17 @@ export class AppointmentService {
     });
     
     try {
-        const dateStr = new Date(appointment.dateTime).toLocaleString('tr-TR', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'long' });
+        // 🚀 DÜZELTME 3: İptal mesajında saati İstanbul'a sabitliyoruz
+        const dateStr = new Date(appointment.dateTime).toLocaleString('tr-TR', { 
+            timeZone: 'Europe/Istanbul',
+            hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'long' 
+        });
         
-        // Sadece CANCELLED (İptal) durumunda müşteriye mesaj atıyoruz
         if (data.status === 'CANCELLED') {
-             // İptal sebebi frontend'den 'cancelReason' olarak gelmeli
              const reasonText = data.cancelReason ? `\n\n📝 *İptal Sebebi:* ${data.cancelReason}` : '';
-             
              const iptalMesaji = `❌ Sayın ${appointment.customer?.name || 'Müşterimiz'}, ${dateStr} tarihindeki randevunuz maalesef iptal edilmiştir.${reasonText}\n\nAnlayışınız için teşekkür eder, yeni bir randevu için sitemizi ziyaret etmenizi rica ederiz.`;
              
              if (appointment.customer?.phone) {
-                 // YENİ WHATSAPP MOTORU
                  await this.notifier.sendMessage(appointment.userId, appointment.customer.phone, iptalMesaji);
              }
         }
@@ -177,15 +177,17 @@ export class AppointmentService {
       });
 
       for (const app of upcomingAppointments) {
-        const timeStr = app.dateTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        // 🚀 DÜZELTME 4: Hatırlatma mesajında saati İstanbul'a sabitliyoruz
+        const timeStr = app.dateTime.toLocaleTimeString('tr-TR', { 
+            timeZone: 'Europe/Istanbul',
+            hour: '2-digit', minute: '2-digit' 
+        });
         
-        // Müşteriye Hatırlatma
         if (app.customer && app.customer.phone) {
             const customerMessage = `Merhaba ${app.customer.name}, ${app.user?.shopName || 'Kuaför'} salonundaki ${app.service.name} randevunuza yaklaşık 1 saat kalmıştır (${timeStr}). Bizi tercih ettiğiniz için teşekkür ederiz!`;
             await this.notifier.sendMessage(app.userId, app.customer.phone, customerMessage);
         }
 
-        // Personele Hatırlatma
         if (app.staff && app.staff.phone) {
             const staffMessage = `🔔 DİKKAT: Sayın ${app.staff.name}, 1 saat sonra (${timeStr}) ${app.customer?.name || 'Müşteri'} isimli müşteri ile ${app.service.name} randevunuz bulunmaktadır. Lütfen hazırlıklarınızı tamamlayın.`;
             await this.notifier.sendMessage(app.userId, app.staff.phone, staffMessage);
@@ -201,7 +203,7 @@ export class AppointmentService {
     }
   }
 
-  // --- 6. Webhook (Twilio kalktığı için bu fonksiyon tamamen silinebilir, ancak başka modüllerde çağırılıyorsa hata vermemesi için boş tutuyoruz) ---
+  // --- 6. Webhook ---
   async handleTwilioReply(from: string, body: string) {
     console.log("Twilio Webhook devre dışı bırakıldı.");
     return "OK";
