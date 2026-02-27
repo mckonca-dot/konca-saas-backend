@@ -10,42 +10,41 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 TERTEMİZ DEDEKTİF v2: TypeScript'i tamamen susturan "Zorla String Yap" yöntemi!
+  // 🚀 SON SİLAH: "Parçalayıcı" (Tüm zaman dilimlerini ezer geçer, sadece rakamları okur!)
   private parseDateStrict(input: any): Date {
     const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
     console.log(`[DATE DEBUG] Gelen Ham Veri: ${dateStr}`);
 
-    // DURUM 1: Chat Widget Formatı (Örn: "25.02.2026 15:00")
-    if (dateStr.includes('.') && dateStr.includes(' ') && !dateStr.includes('T')) {
-        const parts = dateStr.split(' ');
-        
-        // 🚀 DÜZELTME: TS kafası karışmasın diye parçaları ZORLA metne (String) çeviriyoruz!
-        const datePart = String(parts);
-        const timePart = String(parts);
+    // Tarihi boşluk, nokta, iki nokta, T veya Z harflerinden acımasızca parçalara ayırır
+    // Örn: "2026-02-28T11:00:00Z" -> ["2026", "02", "28", "11", "00", "00"]
+    const parts = dateStr.split(/[\s.:T-Z]/).filter(Boolean);
+    
+    if (!parts || parts.length < 3) return new Date(); // Hata önleyici
 
-        const dateParts = datePart.split('.');
-        const timeParts = timePart.split(':');
-        
-        if (dateParts.length === 3 && timeParts.length >= 2) {
-            const day = Number(dateParts);
-            const month = Number(dateParts) - 1;
-            const year = Number(dateParts);
-            const hours = Number(timeParts);
-            const minutes = Number(timeParts);
-            
-            // 3 saat geri çekiyoruz (TR saatinden Evrensel Saate)
-            return new Date(Date.UTC(year, month, day, hours - 3, minutes));
-        }
+    let year, month, day, hours, minutes;
+
+    // Dashboard Formatı (YYYY-MM-DD) -> İlk parça 4 haneli yıldır (Örn: 2026)
+    if (parts && parts.length === 4) {
+        year = Number(parts);
+        month = Number(parts) - 1; // Yazılımda aylar 0'dan başlar
+        day = Number(parts);
+        hours = Number(parts || 0);
+        minutes = Number(parts || 0);
+    } 
+    // Chat Widget Formatı (DD.MM.YYYY) -> İlk parça gündür, 3. parça yıldır
+    else {
+        day = Number(parts);
+        month = Number(parts) - 1;
+        year = Number(parts);
+        hours = Number(parts || 0);
+        minutes = Number(parts || 0);
     }
 
-    // DURUM 2: Dashboard Formatı (Dümdüz JavaScript Objesi)
-    const d = new Date(input);
-    if (!isNaN(d.getTime())) {
-        // Arayüzün yolladığı saati kaba kuvvetle 3 saat (10800000 milisaniye) geri çekiyoruz.
-        return new Date(d.getTime() - 10800000); 
-    }
-
-    return new Date();
+    // 🚀 İŞTE SİHİR BURADA:
+    // Saat kısmından (hours) kaba kuvvetle 3 çıkarıp Evrensel Saate (UTC) zorluyoruz.
+    // Frontend "11" gönderdiyse, burası "8" olarak veritabanına kaydedilir.
+    // Senin ekranın bunu geri okuduğunda üzerine TR saati (+3) ekleyecek ve tam "11:00" gösterecek!
+    return new Date(Date.UTC(year, month, day, hours - 3, minutes));
   }
 
   // --- 1. Randevuları Listele ---
