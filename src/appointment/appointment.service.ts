@@ -10,34 +10,36 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // --- ÖZEL FONKSİYON: Tarihi Zorla TR Formatında Okur ---
+  // 🚀 ZIRHLI TARİH DEDEKTİFİ: Frontend ne yollarsa yollasın, içindeki rakamları söküp TR saatine (UTC+3) zorlar!
   private parseDateStrict(input: any): Date {
     if (input instanceof Date) return input;
-
     const dateStr = String(input).trim();
     console.log(`🔍 İncelenen Tarih: ${dateStr}`);
 
-    const matches = dateStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+    // DURUM 1: Chat Widget Formatı (Örn: 25.02.2026 15:00)
+    const trMatch = dateStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:\s+(\d{1,2}):(\d{1,2}))?/);
+    if (trMatch) {
+        const day = parseInt(trMatch[1]);
+        const month = parseInt(trMatch[2]) - 1; 
+        const year = parseInt(trMatch[3]);
+        const hours = trMatch[4] ? parseInt(trMatch[4]) : 0;
+        const minutes = trMatch[5] ? parseInt(trMatch[5]) : 0;
+        return new Date(Date.UTC(year, month, day, hours - 3, minutes));
+    }
 
-    if (matches) {
-        const day = parseInt(matches[1]);
-        const month = parseInt(matches[2]) - 1; 
-        const year = parseInt(matches[3]);
+    // DURUM 2: Dashboard Formatı (Örn: 2026-02-25T16:00...)
+    const isoMatch = dateStr.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(?:T|\s+)(\d{1,2}):(\d{1,2})/);
+    if (isoMatch) {
+        const year = parseInt(isoMatch[1]);
+        const month = parseInt(isoMatch[2]) - 1; 
+        const day = parseInt(isoMatch[3]);
+        const hours = parseInt(isoMatch[4]); // 16:00 seçildiyse burası tam olarak 16 olur
+        const minutes = parseInt(isoMatch[5]);
         
-        let hours = 0, minutes = 0;
-        const timeMatch = dateStr.match(/(\d{1,2}):(\d{1,2})/);
-        if (timeMatch) {
-            hours = parseInt(timeMatch[1]);
-            minutes = parseInt(timeMatch[2]);
-        }
-
-        // 🚀 DÜZELTME 1: SAAT KAYMASINI ÖNLEYEN KOD
-        // Render UTC'de çalıştığı için Türkiye'den (UTC+3) gelen 16:00 saatini
-        // gerçek evrensel saat olan 13:00'a (hours - 3) çevirip veritabanına kaydediyoruz.
-        // Böylece arayüz (frontend) bu saati tekrar çektiğinde tam 16:00 olarak görecek!
-        const trDate = new Date(Date.UTC(year, month, day, hours - 3, minutes));
-        console.log(`✅ TR Formatı Algılandı -> Evrensel Saate Çevrildi: ${trDate.toISOString()}`);
-        return trDate;
+        // Saatin Türkiye saati (UTC+3) olduğunu biliyoruz. 
+        // Veritabanına düzgün kaydolması için 3 saat çıkarıp Evrensel Saate (13:00) çeviriyoruz.
+        // Arayüz bunu geri okuduğunda tam olarak 16:00 olarak gösterecek!
+        return new Date(Date.UTC(year, month, day, hours - 3, minutes));
     }
 
     return new Date(input);
@@ -52,7 +54,7 @@ export class AppointmentService {
     });
   }
 
-  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VERSİYON) ---
+  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VERSİYON 🚀) ---
   async createAppointment(userId: number, data: any) {
     const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote } = data;
 
@@ -99,7 +101,6 @@ export class AppointmentService {
       include: { customer: true, service: true, staff: true }
     });
 
-    // 🚀 DÜZELTME 2: WhatsApp'a mesaj atarken UTC saati değil, İstanbul saatini yazdırıyoruz!
     const dateStr = appointmentDate.toLocaleString('tr-TR', {
         timeZone: 'Europe/Istanbul',
         day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
@@ -139,7 +140,6 @@ export class AppointmentService {
     });
     
     try {
-        // 🚀 DÜZELTME 3: İptal mesajında saati İstanbul'a sabitliyoruz
         const dateStr = new Date(appointment.dateTime).toLocaleString('tr-TR', { 
             timeZone: 'Europe/Istanbul',
             hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'long' 
@@ -177,7 +177,6 @@ export class AppointmentService {
       });
 
       for (const app of upcomingAppointments) {
-        // 🚀 DÜZELTME 4: Hatırlatma mesajında saati İstanbul'a sabitliyoruz
         const timeStr = app.dateTime.toLocaleTimeString('tr-TR', { 
             timeZone: 'Europe/Istanbul',
             hour: '2-digit', minute: '2-digit' 
@@ -205,7 +204,6 @@ export class AppointmentService {
 
   // --- 6. Webhook ---
   async handleTwilioReply(from: string, body: string) {
-    console.log("Twilio Webhook devre dışı bırakıldı.");
     return "OK";
   }
 }
