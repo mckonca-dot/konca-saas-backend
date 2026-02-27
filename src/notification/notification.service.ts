@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+// 🚀 DÜZELTME 1: İhtiyacımız olan sürüm çekici ve tarayıcı araçlarını import ettik
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestWaWebVersion, Browsers } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
 import * as fs from 'fs';
@@ -15,7 +16,7 @@ export class NotificationService {
   async initializeClient(shopId: number) {
     const currentStatus = this.statuses.get(shopId);
     if (currentStatus === 'INITIALIZING' || currentStatus === 'CONNECTED' || this.sockets.has(shopId)) {
-        console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor, çakışmayı önlemek için yeni istek engellendi.`);
+        console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor, yeni istek engellendi.`);
         return;
     }
 
@@ -25,7 +26,13 @@ export class NotificationService {
     const authFolder = `./auth_info/shop_${shopId}`;
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
+    // 🚀 DÜZELTME 2: WhatsApp'ın bizi eski sürüm sanıp atmasını engellemek için anlık güncel sürümü çekiyoruz
+    const { version } = await fetchLatestWaWebVersion();
+    console.log(`[Mağaza ${shopId}] Güncel WhatsApp Sürümü Kullanılıyor: v${version.join('.')}`);
+
     const sock = makeWASocket({
+      version, // 🚀 Güncel sürüm maskemiz
+      browser: Browsers.macOS('Desktop'), // 🚀 Bot gibi değil, sıradan bir Mac Bilgisayar gibi görünüyoruz
       auth: state,
       printQRInTerminal: false, 
       logger: pino({ level: 'error' }) as any, 
@@ -51,19 +58,17 @@ export class NotificationService {
         
         console.error(`[Mağaza ${shopId}] ❌ Bağlantı koptu. Hata Kodu: ${statusCode} | Mesaj: ${error?.message}`);
 
-        // 🚀 DÜZELTME: EĞER WHATSAPP BİZİ REDDEDİYORSA DÖNGÜYÜ TAMAMEN KIR!
         const isFatal = statusCode === 401 || statusCode === 403 || statusCode === 405 || statusCode === 500;
 
         if (isFatal) {
-           console.log(`[Mağaza ${shopId}] Ölümcül hata (${statusCode}). Dosyalar siliniyor ve otomatik bağlanma DURDURULUYOR.`);
+           console.log(`[Mağaza ${shopId}] Ölümcül hata (${statusCode}). Dosyalar siliniyor ve döngü KIRILIYOR.`);
            if (fs.existsSync(authFolder)) {
              fs.rmSync(authFolder, { recursive: true, force: true });
            }
-           // Sistemi tamamen boşalt ve frontend'den yeni bir tık bekle!
            this.statuses.set(shopId, 'DISCONNECTED');
            this.sockets.delete(shopId);
            this.qrCodes.delete(shopId);
-           return; // DÖNGÜYÜ TAM BURADA KESİYORUZ, YENİDEN DENEMEYECEK!
+           return; 
         }
         
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
