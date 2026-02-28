@@ -72,36 +72,41 @@ export class PublicService {
     });
   }
 
-  // 🚀 ZIRHLI TARİH ÇEVİRİCİ (3 Saatlik Kaymayı Kökten Çözen Orijinal Formül)
+  // 🚀 ZIRHLI TARİH ÇEVİRİCİ v2 (TypeScript'i Susturan Versiyon)
   private parseDateStrict(input: any): Date {
-    const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
+    if (!input) return new Date();
+    const dateStr = String(input).trim();
     
-    // Metnin içindeki tüm harf ve işaretleri ezip sadece rakamları alıyoruz
-    const parts = dateStr.split(/[\s.:T\-Z]+/).filter(Boolean);
-    
-    if (!parts || parts.length < 3) return new Date();
-
-    let year = 2026, month = 0, day = 1, hours = 0, minutes = 0;
-
-    // Arayüzden DD.MM.YYYY HH:MM formatında geliyor (Örn: "28.02.2026 15:00")
-    if (parts && parts.length === 4) {
-        day = Number(parts);
-        month = Number(parts) - 1; // JavaScript'te aylar 0'dan başlar
-        year = Number(parts);
-        hours = Number(parts || 0);
-        minutes = Number(parts || 0);
-    } 
-    // YYYY-MM-DD Formatı
-    else if (parts && parts.length === 4) {
-        year = Number(parts);
-        month = Number(parts) - 1;
-        day = Number(parts);
-        hours = Number(parts || 0);
-        minutes = Number(parts || 0);
+    // Müşteri Arayüzü Formatı: "02.03.2026 09:00"
+    if (dateStr.includes('.') && dateStr.includes(' ') && !dateStr.includes('T')) {
+        const parts = dateStr.split(' ');
+        
+        // 🔥 TS kafası karışmasın diye ZORLA metne (String) çeviriyoruz!
+        const datePart = String(parts);
+        const timePart = String(parts);
+        
+        const dateParts = datePart.split('.');
+        const timeParts = timePart.split(':');
+        
+        if (dateParts.length === 3 && timeParts.length >= 2) {
+            const day = Number(dateParts);
+            const month = Number(dateParts) - 1; // JavaScript'te aylar 0'dan başlar
+            const year = Number(dateParts);
+            const hours = Number(timeParts);
+            const minutes = Number(timeParts);
+            
+            // 3 saat geri alarak (UTC) kaydediyoruz. Dashboard okurken +3 ekleyip saati tam vuracak!
+            return new Date(Date.UTC(year, month, day, hours - 3, minutes));
+        }
     }
 
-    // 🔥 SİHİRLİ DOKUNUŞ: Saati zorla 3 saat geri alıp (Evrensel Saat) veritabanına yazıyoruz!
-    return new Date(Date.UTC(year, month, day, hours - 3, minutes));
+    // Başka bir format gelme ihtimaline karşı standart yedek
+    const fallback = new Date(input);
+    if (!isNaN(fallback.getTime())) {
+         return new Date(fallback.getTime() - 10800000); // 3 saat geri çek
+    }
+
+    return new Date(); 
   }
 
   // --- 🚀 RANDEVU OLUŞTURMA VE WHATSAPP BİLDİRİM MOTORU ---
@@ -147,7 +152,6 @@ export class PublicService {
       });
     }
 
-    // 🔥 HATA BURADAYDI: "note" alanı Prisma şemanda olmadığı için silindi!
     const newAppointment = await this.prisma.appointment.create({
       data: {
         dateTime: appointmentStart,
@@ -172,7 +176,6 @@ export class PublicService {
             await this.notifier.sendMessage(userId, customerPhone, musteriMesaj);
         }
 
-        // WhatsApp mesajına hala "customerNote" değişkeni gidecek, sorun yok!
         const patronMesaj = 
             `🔔 *SİTEDEN YENİ RANDEVU EKLENDİ*\n\n` +
             `📞 *Müşteri:* ${customerName}\n` +
