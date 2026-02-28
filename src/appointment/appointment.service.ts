@@ -10,41 +10,46 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 SON SİLAH: "Parçalayıcı" (Tüm zaman dilimlerini ezer geçer, sadece rakamları okur!)
+  // 🚀 SENİN MANTIĞINLA YAZILMIŞ NİHAİ ÇÖZÜM: Saat dilimlerini yok say, "Türkiye (+03:00)" mührünü bas!
   private parseDateStrict(input: any): Date {
     const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
     console.log(`[DATE DEBUG] Gelen Ham Veri: ${dateStr}`);
 
-    // Tarihi boşluk, nokta, iki nokta, T veya Z harflerinden acımasızca parçalara ayırır
-    // Örn: "2026-02-28T11:00:00Z" -> ["2026", "02", "28", "11", "00", "00"]
-    const parts = dateStr.split(/[\s.:T-Z]/).filter(Boolean);
+    // Gelen verideki tüm rakamları parçalara ayırır (Z, T, boşluk, çizgi her şeyi çöpe atar)
+    // Örn: "2026-02-28T11:00:00Z" veya "28.02.2026 11:00" -> Sadece rakamlar kalır
+    const parts = dateStr.split(/[\s.:T\-Z]+/).filter(Boolean);
     
-    if (!parts || parts.length < 3) return new Date(); // Hata önleyici
+    if (!parts || parts.length < 5) return new Date(); 
 
-    let year, month, day, hours, minutes;
+    let year = 2026, month = 1, day = 1, hours = 0, minutes = 0;
 
-    // Dashboard Formatı (YYYY-MM-DD) -> İlk parça 4 haneli yıldır (Örn: 2026)
-    if (parts && parts.length === 4) {
+    // YYYY-MM-DD Formatı (Dashboard)
+    if (parts.length === 4) {
         year = Number(parts);
-        month = Number(parts) - 1; // Yazılımda aylar 0'dan başlar
+        month = Number(parts); // String formatında ay 1-12 arasıdır, -1 YAPMIYORUZ!
         day = Number(parts);
-        hours = Number(parts || 0);
-        minutes = Number(parts || 0);
+        hours = Number(parts);
+        minutes = Number(parts);
     } 
-    // Chat Widget Formatı (DD.MM.YYYY) -> İlk parça gündür, 3. parça yıldır
+    // DD.MM.YYYY Formatı (Chat Widget)
     else {
         day = Number(parts);
-        month = Number(parts) - 1;
+        month = Number(parts);
         year = Number(parts);
-        hours = Number(parts || 0);
-        minutes = Number(parts || 0);
+        hours = Number(parts);
+        minutes = Number(parts);
     }
 
-    // 🚀 İŞTE SİHİR BURADA:
-    // Saat kısmından (hours) kaba kuvvetle 3 çıkarıp Evrensel Saate (UTC) zorluyoruz.
-    // Frontend "11" gönderdiyse, burası "8" olarak veritabanına kaydedilir.
-    // Senin ekranın bunu geri okuduğunda üzerine TR saati (+3) ekleyecek ve tam "11:00" gösterecek!
-    return new Date(Date.UTC(year, month, day, hours - 3, minutes));
+    // 🚀 İŞTE SİHİRLİ MÜHÜR BURADA:
+    // Arayüz ne gönderirse göndersin, kullanıcının seçtiği saf saat rakamının (Örn: 11)
+    // yanına "+03:00" ekliyoruz. Bu, sunucuya "BU SAAT KESİNLİKLE TÜRKİYE SAATİDİR" demektir.
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const forcedTurkeyTimeStr = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00.000+03:00`;
+    
+    const finalDate = new Date(forcedTurkeyTimeStr);
+    console.log(`[DATE DEBUG] Türkiye Mühürlü Saat: ${forcedTurkeyTimeStr} -> DB'ye Giden: ${finalDate.toISOString()}`);
+    
+    return finalDate;
   }
 
   // --- 1. Randevuları Listele ---
