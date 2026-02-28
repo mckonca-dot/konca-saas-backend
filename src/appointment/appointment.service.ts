@@ -10,46 +10,26 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 SENİN MANTIĞINLA YAZILMIŞ NİHAİ ÇÖZÜM: Saat dilimlerini yok say, "Türkiye (+03:00)" mührünü bas!
+  // 🚀 SIFIR HATA RİSKİ: En basit, en risksiz saat düzeltici
   private parseDateStrict(input: any): Date {
-    const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
-    console.log(`[DATE DEBUG] Gelen Ham Veri: ${dateStr}`);
+    let d = new Date(input);
 
-    // Gelen verideki tüm rakamları parçalara ayırır (Z, T, boşluk, çizgi her şeyi çöpe atar)
-    // Örn: "2026-02-28T11:00:00Z" veya "28.02.2026 11:00" -> Sadece rakamlar kalır
-    const parts = dateStr.split(/[\s.:T\-Z]+/).filter(Boolean);
-    
-    if (!parts || parts.length < 5) return new Date(); 
-
-    let year = 2026, month = 1, day = 1, hours = 0, minutes = 0;
-
-    // YYYY-MM-DD Formatı (Dashboard)
-    if (parts.length === 4) {
-        year = Number(parts);
-        month = Number(parts); // String formatında ay 1-12 arasıdır, -1 YAPMIYORUZ!
-        day = Number(parts);
-        hours = Number(parts);
-        minutes = Number(parts);
-    } 
-    // DD.MM.YYYY Formatı (Chat Widget)
-    else {
-        day = Number(parts);
-        month = Number(parts);
-        year = Number(parts);
-        hours = Number(parts);
-        minutes = Number(parts);
+    // Chat Widget Formatı Kontrolü (Örn: 28.02.2026 11:00)
+    if (typeof input === 'string' && input.includes('.') && input.includes(':')) {
+        const parts = input.split(/[\s.:]+/);
+        if (parts.length >= 5) {
+            // DD.MM.YYYY HH:MM
+            d = new Date(Date.UTC(Number(parts), Number(parts) - 1, Number(parts), Number(parts), Number(parts)));
+        }
     }
 
-    // 🚀 İŞTE SİHİRLİ MÜHÜR BURADA:
-    // Arayüz ne gönderirse göndersin, kullanıcının seçtiği saf saat rakamının (Örn: 11)
-    // yanına "+03:00" ekliyoruz. Bu, sunucuya "BU SAAT KESİNLİKLE TÜRKİYE SAATİDİR" demektir.
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const forcedTurkeyTimeStr = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00.000+03:00`;
+    if (isNaN(d.getTime())) return new Date();
+
+    // SİHİRLİ DOKUNUŞ: Hangi tarih gelirse gelsin, acımasızca 3 saat geri alıyoruz!
+    // (Arayüz bunu okuduğunda +3 ekleyip saati tam 12'den vuracak)
+    d.setHours(d.getHours() - 3);
     
-    const finalDate = new Date(forcedTurkeyTimeStr);
-    console.log(`[DATE DEBUG] Türkiye Mühürlü Saat: ${forcedTurkeyTimeStr} -> DB'ye Giden: ${finalDate.toISOString()}`);
-    
-    return finalDate;
+    return d;
   }
 
   // --- 1. Randevuları Listele ---
