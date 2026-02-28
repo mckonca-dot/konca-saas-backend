@@ -101,7 +101,6 @@ export class PublicService {
     }
 
     // 🔥 SİHİRLİ DOKUNUŞ: Saati zorla 3 saat geri alıp (Evrensel Saat) veritabanına yazıyoruz!
-    // Türkiye'den okunduğunda üzerine otomatik 3 eklenecek ve 15:00 olarak çıkacak.
     return new Date(Date.UTC(year, month, day, hours - 3, minutes));
   }
 
@@ -114,11 +113,6 @@ export class PublicService {
 
     if (isNaN(appointmentStart.getTime())) throw new BadRequestException('Tarih formatı geçersiz!');
     
-    // Geçmiş zaman kontrolüne 3 saatlik UTC toleransı ekliyoruz ki hemen patlamasın
-    if (appointmentStart.getTime() < (now.getTime() - 10800000)) {
-        // throw new BadRequestException('Geçmiş zamana randevu alınamaz.');
-    }
-
     const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
     if (!service) throw new BadRequestException('Hizmet bulunamadı.');
     if (!service.isActive) throw new BadRequestException('Bu hizmet şu an kullanılamıyor.');
@@ -153,11 +147,11 @@ export class PublicService {
       });
     }
 
+    // 🔥 HATA BURADAYDI: "note" alanı Prisma şemanda olmadığı için silindi!
     const newAppointment = await this.prisma.appointment.create({
       data: {
         dateTime: appointmentStart,
         status: 'CONFIRMED',
-        note: customerNote || "",
         customer: { connect: { id: customer.id } },
         service: { connect: { id: Number(serviceId) } },
         user: { connect: { id: userId } },
@@ -166,21 +160,19 @@ export class PublicService {
       include: { service: true, staff: true }
     });
 
-    // 📱 YENİ: WHATSAPP BİLDİRİM ZEKASI
+    // 📱 WHATSAPP BİLDİRİM ZEKASI
     try {
-        // 🔥 KRİTİK DÜZELTME: Frankfurt saatiyle mesaj gitmesin diye "Europe/Istanbul" eklendi!
         const dateStr = appointmentStart.toLocaleString('tr-TR', {
             timeZone: 'Europe/Istanbul',
             day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
         });
 
-        // 1. Müşteriye Gidecek Mesaj
         if (customerPhone) {
             const musteriMesaj = `Sayın ${customerName}, ${dateStr} tarihindeki ${service.name} randevunuz başarıyla oluşturulmuş ve onaylanmıştır. Sizi bekliyoruz!`;
             await this.notifier.sendMessage(userId, customerPhone, musteriMesaj);
         }
 
-        // 2. Dükkan Sahibine veya Personele Gidecek Bilgi Mesajı
+        // WhatsApp mesajına hala "customerNote" değişkeni gidecek, sorun yok!
         const patronMesaj = 
             `🔔 *SİTEDEN YENİ RANDEVU EKLENDİ*\n\n` +
             `📞 *Müşteri:* ${customerName}\n` +
@@ -190,7 +182,7 @@ export class PublicService {
             (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
             `Sistem tarafından otomatik onaylanıp takvime eklendi.`;
 
-        const targetPhone = newAppointment.staff?.phone ? newAppointment.staff.phone : '905319485682'; // Buraya patronun default numarası gelir
+        const targetPhone = newAppointment.staff?.phone ? newAppointment.staff.phone : '905319485682';
         await this.notifier.sendMessage(userId, targetPhone, patronMesaj);
 
     } catch (error) {
