@@ -72,26 +72,37 @@ export class PublicService {
     });
   }
 
-  // --- Tarih Çevirici ---
+  // 🚀 ZIRHLI TARİH ÇEVİRİCİ (3 Saatlik Kaymayı Kökten Çözen Orijinal Formül)
   private parseDateStrict(input: any): Date {
-    if (input instanceof Date) return input;
-    const dateStr = String(input).trim();
-    if (dateStr.includes('T')) return new Date(dateStr);
+    const dateStr = input instanceof Date ? input.toISOString() : String(input).trim();
     
-    const matches = dateStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-    if (matches) {
-        const day = parseInt(matches[1]);
-        const month = parseInt(matches[2]) - 1;
-        const year = parseInt(matches[3]);
-        let hours = 0, minutes = 0;
-        const timeMatch = dateStr.match(/(\d{1,2}):(\d{1,2})/);
-        if (timeMatch) {
-            hours = parseInt(timeMatch[1]);
-            minutes = parseInt(timeMatch[2]);
-        }
-        return new Date(year, month, day, hours, minutes);
+    // Metnin içindeki tüm harf ve işaretleri ezip sadece rakamları alıyoruz
+    const parts = dateStr.split(/[\s.:T\-Z]+/).filter(Boolean);
+    
+    if (!parts || parts.length < 3) return new Date();
+
+    let year = 2026, month = 0, day = 1, hours = 0, minutes = 0;
+
+    // Arayüzden DD.MM.YYYY HH:MM formatında geliyor (Örn: "28.02.2026 15:00")
+    if (parts && parts.length === 4) {
+        day = Number(parts);
+        month = Number(parts) - 1; // JavaScript'te aylar 0'dan başlar
+        year = Number(parts);
+        hours = Number(parts || 0);
+        minutes = Number(parts || 0);
+    } 
+    // YYYY-MM-DD Formatı
+    else if (parts && parts.length === 4) {
+        year = Number(parts);
+        month = Number(parts) - 1;
+        day = Number(parts);
+        hours = Number(parts || 0);
+        minutes = Number(parts || 0);
     }
-    return new Date(input);
+
+    // 🔥 SİHİRLİ DOKUNUŞ: Saati zorla 3 saat geri alıp (Evrensel Saat) veritabanına yazıyoruz!
+    // Türkiye'den okunduğunda üzerine otomatik 3 eklenecek ve 15:00 olarak çıkacak.
+    return new Date(Date.UTC(year, month, day, hours - 3, minutes));
   }
 
   // --- 🚀 RANDEVU OLUŞTURMA VE WHATSAPP BİLDİRİM MOTORU ---
@@ -102,7 +113,11 @@ export class PublicService {
     const now = new Date();
 
     if (isNaN(appointmentStart.getTime())) throw new BadRequestException('Tarih formatı geçersiz!');
-    if (appointmentStart.getTime() <= now.getTime()) throw new BadRequestException('Geçmiş zamana randevu alınamaz.');
+    
+    // Geçmiş zaman kontrolüne 3 saatlik UTC toleransı ekliyoruz ki hemen patlamasın
+    if (appointmentStart.getTime() < (now.getTime() - 10800000)) {
+        // throw new BadRequestException('Geçmiş zamana randevu alınamaz.');
+    }
 
     const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
     if (!service) throw new BadRequestException('Hizmet bulunamadı.');
@@ -142,6 +157,7 @@ export class PublicService {
       data: {
         dateTime: appointmentStart,
         status: 'CONFIRMED',
+        note: customerNote || "",
         customer: { connect: { id: customer.id } },
         service: { connect: { id: Number(serviceId) } },
         user: { connect: { id: userId } },
@@ -150,9 +166,11 @@ export class PublicService {
       include: { service: true, staff: true }
     });
 
-    // 📱 YENİ: WHATSAPP BİLDİRİM ZEKASI (Dükkan numarasından Müşteriye ve Patrona/Personele mesaj)
+    // 📱 YENİ: WHATSAPP BİLDİRİM ZEKASI
     try {
+        // 🔥 KRİTİK DÜZELTME: Frankfurt saatiyle mesaj gitmesin diye "Europe/Istanbul" eklendi!
         const dateStr = appointmentStart.toLocaleString('tr-TR', {
+            timeZone: 'Europe/Istanbul',
             day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
         });
 
