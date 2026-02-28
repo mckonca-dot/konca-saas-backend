@@ -10,26 +10,48 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 SIFIR HATA RİSKİ: En basit, en risksiz saat düzeltici
+  // 🚀 NİHAİ DEDEKTİF: JavaScript'in saat formatlarını çöpe atıp sadece rakamları okur!
   private parseDateStrict(input: any): Date {
-    let d = new Date(input);
+    // Ne gelirse gelsin zorla yazıya (string) çevir
+    const str = input instanceof Date ? input.toISOString() : String(input).trim();
+    
+    // Metnin içindeki tüm rakam gruplarını yakala
+    const match = str.match(/\d+/g);
+    if (!match || match.length < 5) return new Date();
 
-    // Chat Widget Formatı Kontrolü (Örn: 28.02.2026 11:00)
-    if (typeof input === 'string' && input.includes('.') && input.includes(':')) {
-        const parts = input.split(/[\s.:]+/);
-        if (parts.length >= 5) {
-            // DD.MM.YYYY HH:MM
-            d = new Date(Date.UTC(Number(parts), Number(parts) - 1, Number(parts), Number(parts), Number(parts)));
-        }
+    let year, month, day, hours, minutes;
+    
+    // Format ayrımı (Yıl başta mı sonda mı?)
+    if (match.length === 4) {
+        // Dashboard Formatı: YYYY-MM-DD
+        year = Number(match);
+        month = Number(match) - 1; // Ayları 0'dan başlatır
+        day = Number(match);
+        hours = Number(match);
+        minutes = Number(match);
+    } else {
+        // Chat Widget Formatı: DD.MM.YYYY
+        day = Number(match);
+        month = Number(match) - 1;
+        year = Number(match);
+        hours = Number(match);
+        minutes = Number(match);
     }
 
-    if (isNaN(d.getTime())) return new Date();
-
-    // SİHİRLİ DOKUNUŞ: Hangi tarih gelirse gelsin, acımasızca 3 saat geri alıyoruz!
-    // (Arayüz bunu okuduğunda +3 ekleyip saati tam 12'den vuracak)
-    d.setHours(d.getHours() - 3);
+    // 🚀 SAATİ ZORLA 3 SAAT GERİ ALIYORUZ!
+    // Örneğin siteden 15:00 seçildiyse (hours = 15), veritabanına 12:00 UTC olarak kaydedilecek.
+    // Dashboard bunu okurken üzerine tekrar +3 Türkiye saati ekleyip tam 15:00 gösterecek!
+    const finalDate = new Date(Date.UTC(year, month, day, hours - 3, minutes));
     
-    return d;
+    // 📸 İTİRAF RAPORU: Bu loglar Render ekranına her şeyi yazacak!
+    console.log(`\n=========================================`);
+    console.log(`🕒 SAAT DÜZELTME RAPORU`);
+    console.log(`Gelen Ham Veri: ${str}`);
+    console.log(`Sökülen Saf Saat: ${hours}:${minutes}`);
+    console.log(`Veritabanına Yazılan (UTC -3): ${finalDate.toISOString()}`);
+    console.log(`=========================================\n`);
+    
+    return finalDate;
   }
 
   // --- 1. Randevuları Listele ---
