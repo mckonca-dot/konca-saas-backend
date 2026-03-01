@@ -18,7 +18,7 @@ export class UserService {
     return result;
   }
 
-  // Kullanıcı Güncelleme (Dükkan Bilgileri Eklendi)
+  // Kullanıcı Güncelleme (Dükkan Bilgileri ve ADRES Eklendi)
   async updateUser(userId: number, data: any) {
     const updateData: any = {};
 
@@ -29,10 +29,13 @@ export class UserService {
     if (data.firstName !== undefined) updateData.firstName = data.firstName;
     if (data.lastName !== undefined) updateData.lastName = data.lastName;
     
-    // 👇 YENİ: Dükkan ayarları için eklendi
+    // 👇 Dükkan ayarları
     if (data.shopName !== undefined) updateData.shopName = data.shopName;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.tagline !== undefined) updateData.tagline = data.tagline;
+    
+    // 🚀🚀 İŞTE EKSİK OLAN KRİTİK SATIR BURASIYDI: 🚀🚀
+    if (data.address !== undefined) updateData.address = data.address;
 
     return this.prisma.user.update({
       where: { id: userId },

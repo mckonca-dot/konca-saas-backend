@@ -23,7 +23,7 @@ model User {
   updatedAt DateTime @updatedAt
   notes     String?  // Dükkan sahibinin özel notları
   messageCredits Int @default(50)
-  
+  address String?
   reviews      Review[]
   galleryItems GalleryItem[]
   customers    Customer[]
