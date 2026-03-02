@@ -1,29 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import { json, urlencoded } from 'express'; 
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // 1. CORS'u Aç (Frontend'in Backend'e sorunsuz erişmesi için GÜNCELLENDİ)
+  // 🛡️ SİBER GÜVENLİK KALKANI (CORS) - Sadece izinli siteler girebilir!
   app.enableCors({
-    origin: '*', // Şimdilik tüm adreslerden gelen isteklere kapıyı açıyoruz
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
+    origin: [
+      'http://localhost:3000', // Senin kendi bilgisayarın (geliştirme yaparken lazım)
+      'https://randevu-saas-frontend-ghqr.vercel.app', // 👈 KENDİ VERCEL LİNKİNİ BURAYA YAPIŞTIR
+      // İleride .com domaini alınca onu da buraya ekleyeceğiz.
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true, // Oturum açma (token) işlemleri için şart
   });
 
-  // 2. Doğrulama Borusu (Login/Register DTO'larının çalışması için)
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true, // DTO'da olmayan fazlalık verileri otomatik temizler
-  }));
-
-  // 3. --- RESİM YÜKLEME AYARI (Base64 Payload Limit) ---
-  app.use(json({ limit: '50mb' }));
-  app.use(urlencoded({ extended: true, limit: '50mb' }));
-
-  // 4. Sunucuyu Başlat (RENDER İÇİN GÜNCELLENDİ)
-  // Render'ın atadığı portu kullan, bulamazsa 3001'i kullan
+  // Render'ın atadığı portu veya 3001'i dinle
   await app.listen(process.env.PORT || 3001);
 }
 bootstrap();
