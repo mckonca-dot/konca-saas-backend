@@ -5,6 +5,12 @@ import { PublicService } from './public.service';
 export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
+  // 👇 YENİ: Ana sayfa vitrini için tüm dükkanları getiren endpoint
+  @Get('shops')
+  getAllShops() {
+    return this.publicService.getAllPublicShops();
+  }
+
   @Get('shop/:userId')
   getShop(@Param('userId') userId: string) {
     return this.publicService.getShopData(Number(userId));

@@ -6,6 +6,26 @@ import { NotificationService } from '../notification/notification.service';
 export class PublicService {
   constructor(private prisma: PrismaService, private notifier: NotificationService) {}
 
+  // 👇 YENİ: Vitrin için tüm dükkanları çeken fonksiyon
+  async getAllPublicShops() {
+    const shops = await this.prisma.user.findMany({
+      select: {
+        id: true, // Frontend'de yönlendirme için gerekecek (shop.id veya shop.userId olarak kullanılıyor)
+        shopName: true,
+        city: true,
+        district: true,
+        address: true,
+        coverImage: true,
+        logo: true,
+        // Gizlilik için hash, email, phone gibi kritik bilgileri burada döndürmüyoruz
+      },
+      // İsteğe bağlı: Sadece profilini doldurmuş aktif dükkanları getirmek için bir where koşulu eklenebilir
+      // where: { isActive: true } 
+    });
+    
+    return shops;
+  }
+
   // --- Dükkan Bilgilerini Getir ---
   async getShopData(userId: number) {
     const user = await this.prisma.user.findUnique({
@@ -25,6 +45,7 @@ export class PublicService {
     return shopData;
   }
 
+  // ... (Geri kalan kodlarınız aynı kalacak)
   // --- Yasaklı Günler ---
   async getClosures(userId: number) {
     return this.prisma.shopClosure.findMany({ where: { userId: userId } });
