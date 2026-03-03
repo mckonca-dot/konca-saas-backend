@@ -15,6 +15,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduleModule } from '@nestjs/schedule';
 
+// 🚀 SÜPER ADMİN KONTROLCÜSÜ İÇERİ ALINDI
+import { AdminController } from './admin/admin.controller';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -31,7 +34,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     GalleryModule, 
     ScheduleModule.forRoot(),
   ],
-  controllers: [AppController],
+  // 👇 NESTJS'E "ADMİN KAPISINI AÇ" EMRİ VERİLDİ
+  controllers: [AppController, AdminController], 
   providers: [AppService],
 })
 export class AppModule {}
