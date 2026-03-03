@@ -32,6 +32,10 @@ model User {
   logo           String?  // Dükkanın logo fotoğrafı
   description    String?  // Dükkanın hakkımızda yazısı (varsa)
 
+  isAdmin      Boolean   @default(false) // Senin hesabını Admin yapmak için
+  isActive     Boolean   @default(true)  // Siteden kaldırmak (banlamak) için
+  isPromoted   Boolean   @default(false) // Paket satıp "Öne Çıkarmak" için
+
   // İlişkiler
   reviews        Review[]
   galleryItems   GalleryItem[]
