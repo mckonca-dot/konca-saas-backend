@@ -7,20 +7,23 @@ export class PublicService {
   constructor(private prisma: PrismaService, private notifier: NotificationService) {}
 
   // 👇 YENİ: Vitrin için tüm dükkanları çeken fonksiyon
+// 👇 DÜZELTİLMİŞ: Vitrin için tüm dükkanları ve HİZMETLERİNİ çeken fonksiyon
   async getAllPublicShops() {
     const shops = await this.prisma.user.findMany({
       select: {
-        id: true, // Frontend'de yönlendirme için gerekecek (shop.id veya shop.userId olarak kullanılıyor)
+        id: true, 
         shopName: true,
-        city: true,
-        district: true,
         address: true,
+        city: true,       
+        district: true,   
         coverImage: true,
         logo: true,
-        // Gizlilik için hash, email, phone gibi kritik bilgileri burada döndürmüyoruz
+        // 👇 YENİ: Sadece 'Aktif' olan hizmetleri de getiriyoruz
+        services: {
+          where: { isActive: true },
+          select: { name: true, price: true }
+        }
       },
-      // İsteğe bağlı: Sadece profilini doldurmuş aktif dükkanları getirmek için bir where koşulu eklenebilir
-      // where: { isActive: true } 
     });
     
     return shops;

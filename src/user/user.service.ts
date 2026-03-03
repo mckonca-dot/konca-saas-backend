@@ -18,7 +18,7 @@ export class UserService {
     return result;
   }
 
-  // Kullanıcı Güncelleme (Dükkan Bilgileri ve ADRES Eklendi)
+  // Kullanıcı Güncelleme (Dükkan Bilgileri, ADRES, İL ve İLÇE Eklendi)
   async updateUser(userId: number, data: any) {
     const updateData: any = {};
 
@@ -33,9 +33,11 @@ export class UserService {
     if (data.shopName !== undefined) updateData.shopName = data.shopName;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.tagline !== undefined) updateData.tagline = data.tagline;
-    
-    // 🚀🚀 İŞTE EKSİK OLAN KRİTİK SATIR BURASIYDI: 🚀🚀
     if (data.address !== undefined) updateData.address = data.address;
+    
+    // 🚀🚀 İŞTE EKSİK OLAN YENİ KRİTİK SATIRLAR (Gümrük Kapısı Açıldı) 🚀🚀
+    if (data.city !== undefined) updateData.city = data.city;
+    if (data.district !== undefined) updateData.district = data.district;
 
     return this.prisma.user.update({
       where: { id: userId },
