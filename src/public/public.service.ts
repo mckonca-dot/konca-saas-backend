@@ -6,12 +6,12 @@ import { NotificationService } from '../notification/notification.service';
 export class PublicService {
   constructor(private prisma: PrismaService, private notifier: NotificationService) {}
 
-  // 👇 DÜZELTİLMİŞ: Vitrin için sadece AKTİF dükkanları ve HİZMETLERİNİ çeken fonksiyon
+  // 👇 DÜZELTİLMİŞ: Vitrin için sadece AKTİF dükkanları çeken fonksiyon
   async getAllPublicShops() {
     const shops = await this.prisma.user.findMany({
       where: {
-        isAdmin: false, // Süper admin vitrinde dükkan gibi görünmesin
-        isActive: true, // 🚀 YENİ: Sadece 'Aktif' (banlanmamış) dükkanlar gelsin
+        isAdmin: false, 
+        isActive: true, // Sadece 'Aktif' olan dükkanlar
       },
       select: {
         id: true, 
@@ -21,9 +21,8 @@ export class PublicService {
         district: true,   
         coverImage: true,
         logo: true,
-        isPromoted: true, // Ana sayfada öne çıkarmak için gerekli
-        isActive: true,   // Frontend güvenliği için gerekli
-        // 👇 Sadece 'Aktif' olan hizmetleri de getiriyoruz
+        isPromoted: true, 
+        isActive: true,   
         services: {
           where: { isActive: true },
           select: { name: true, price: true }
@@ -47,7 +46,6 @@ export class PublicService {
       },
     });
 
-    // 🚀 YENİ GÜVENLİK: Eğer dükkan pasife alınmışsa randevu sayfasına giren kişiyi engelle
     if (!user || !user.isActive) throw new BadRequestException('Bu dükkan şu anda hizmet vermemektedir.');
     
     const { hash, ...shopData } = user;
@@ -93,7 +91,16 @@ export class PublicService {
     }));
   }
 
-  // 🚀 TERTEMİZ DÖNÜŞTÜRÜCÜ (Frontend artık düzgün veri yolladığı için sıfır matematik!)
+  // 🚀 İŞTE YANLIŞLIKLA SİLDİĞİMİZ FONKSİYON GERİ GELDİ!
+  // --- Galeri ---
+  async getGallery(userId: number) {
+    return this.prisma.galleryItem.findMany({ 
+      where: { userId: userId },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  // 🚀 TERTEMİZ DÖNÜŞTÜRÜCÜ
   private parseDateStrict(input: any): Date {
     const d = new Date(input);
     if (isNaN(d.getTime())) return new Date();
@@ -104,7 +111,6 @@ export class PublicService {
   async createPublicAppointment(userId: number, data: any) {
     const { serviceId, dateTime, customerName, customerPhone, staffId, customerNote } = data;
 
-    // 🚀 GÜVENLİK: Dükkan pasifken arkadan randevu atılmasını engelle
     const shop = await this.prisma.user.findUnique({ where: { id: userId }});
     if (!shop || !shop.isActive) throw new BadRequestException('Bu dükkan şu anda randevu kabul etmemektedir.');
 
