@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Header } from '@nestjs/common';
 import { PublicService } from './public.service';
 
 @Controller('public')
@@ -6,7 +6,9 @@ export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
   // 👇 YENİ: Ana sayfa vitrini için tüm dükkanları getiren endpoint
+  // 🚀 GÜVENLİK: Backend seviyesinde de "Cache (Önbellek)" tamamen kapatıldı!
   @Get('shops')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   getAllShops() {
     return this.publicService.getAllPublicShops();
   }
