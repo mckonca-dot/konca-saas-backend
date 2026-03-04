@@ -6,10 +6,13 @@ import { NotificationService } from '../notification/notification.service';
 export class PublicService {
   constructor(private prisma: PrismaService, private notifier: NotificationService) {}
 
-  // 👇 YENİ: Vitrin için tüm dükkanları çeken fonksiyon
-// 👇 DÜZELTİLMİŞ: Vitrin için tüm dükkanları ve HİZMETLERİNİ çeken fonksiyon
+  // 👇 DÜZELTİLMİŞ: Vitrin için sadece AKTİF dükkanları ve HİZMETLERİNİ çeken fonksiyon
   async getAllPublicShops() {
     const shops = await this.prisma.user.findMany({
+      where: {
+        isAdmin: false, // Süper admin vitrinde dükkan gibi görünmesin
+        isActive: true, // 🚀 YENİ: Sadece 'Aktif' (banlanmamış) dükkanlar gelsin
+      },
       select: {
         id: true, 
         shopName: true,
@@ -18,7 +21,9 @@ export class PublicService {
         district: true,   
         coverImage: true,
         logo: true,
-        // 👇 YENİ: Sadece 'Aktif' olan hizmetleri de getiriyoruz
+        isPromoted: true, // Ana sayfada öne çıkarmak için gerekli
+        isActive: true,   // Frontend güvenliği için gerekli
+        // 👇 Sadece 'Aktif' olan hizmetleri de getiriyoruz
         services: {
           where: { isActive: true },
           select: { name: true, price: true }
@@ -42,13 +47,13 @@ export class PublicService {
       },
     });
 
-    if (!user) throw new BadRequestException('Dükkan bulunamadı.');
+    // 🚀 YENİ GÜVENLİK: Eğer dükkan pasife alınmışsa randevu sayfasına giren kişiyi engelle
+    if (!user || !user.isActive) throw new BadRequestException('Bu dükkan şu anda hizmet vermemektedir.');
     
     const { hash, ...shopData } = user;
     return shopData;
   }
 
-  // ... (Geri kalan kodlarınız aynı kalacak)
   // --- Yasaklı Günler ---
   async getClosures(userId: number) {
     return this.prisma.shopClosure.findMany({ where: { userId: userId } });
@@ -88,14 +93,6 @@ export class PublicService {
     }));
   }
 
-  // --- Galeri ---
-  async getGallery(userId: number) {
-    return this.prisma.galleryItem.findMany({ 
-      where: { userId: userId },
-      orderBy: { createdAt: 'desc' }
-    });
-  }
-
   // 🚀 TERTEMİZ DÖNÜŞTÜRÜCÜ (Frontend artık düzgün veri yolladığı için sıfır matematik!)
   private parseDateStrict(input: any): Date {
     const d = new Date(input);
@@ -106,6 +103,10 @@ export class PublicService {
   // --- 🚀 RANDEVU OLUŞTURMA VE WHATSAPP BİLDİRİM MOTORU ---
   async createPublicAppointment(userId: number, data: any) {
     const { serviceId, dateTime, customerName, customerPhone, staffId, customerNote } = data;
+
+    // 🚀 GÜVENLİK: Dükkan pasifken arkadan randevu atılmasını engelle
+    const shop = await this.prisma.user.findUnique({ where: { id: userId }});
+    if (!shop || !shop.isActive) throw new BadRequestException('Bu dükkan şu anda randevu kabul etmemektedir.');
 
     const appointmentStart = this.parseDateStrict(dateTime);
     const now = new Date();
