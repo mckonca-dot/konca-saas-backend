@@ -19,8 +19,8 @@ export class ChatService {
       where: { id: userId },
       include: {
         services: true,
-        staff: true,
-        closures: true, // Kapalı günleri de bilsin
+        staff: true, // 🚀 BURASI DÜZELTİLDİ (staffs yerine staff oldu)
+        shopClosures: true, 
       },
     });
 
@@ -32,7 +32,7 @@ export class ChatService {
       .map(s => `- ${s.name}: ${s.price} TL (${s.duration} dk)`)
       .join('\n');
 
-    const staffList = shop.staff.map(s => s.name).join(', ');
+    const staffList = shop.staff.map(s => s.name).join(', '); // 🚀 BURASI DÜZELTİLDİ
     
     const workHours = `Açılış: ${shop.workStart}, Kapanış: ${shop.workEnd}`;
 

@@ -32,7 +32,7 @@ export class AppController {
   async addClosure(@Request() req, @Body() body: { date: string; reason: string }) {
     return this.prisma.shopClosure.create({
       data: {
-        date: body.date,
+        date: new Date(body.date),
         reason: body.reason,
         userId: req.user.id,
       },
@@ -92,7 +92,8 @@ export class AppController {
     return this.prisma.staffLeave.create({
       data: {
         staffId: staffIdNum,
-        date: body.date,
+        date: new Date(body.date),
+        userId: req.user.id, // 🚀 İŞTE RENDER'IN İSTEDİĞİ EKSİK KISIM BURASIYDI!
       },
     });
   }
@@ -104,6 +105,7 @@ export class AppController {
       where: { id: Number(id) },
     });
   }
+  
   // ==========================================================
   // 3. MÜŞTERİLER İÇİN GENEL VERİ ÇEKME (Şifresiz / Public)
   // ==========================================================
