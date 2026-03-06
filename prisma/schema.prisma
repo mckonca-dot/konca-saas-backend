@@ -45,6 +45,11 @@ model User {
   staff          Staff[]
   gallery        Gallery[]
   closures       ShopClosure[] 
+  addressTitle String?
+  fullAddress  String?
+  instagram    String?
+  facebook     String?
+  twitter      String?
   
   @@map("users")
 }

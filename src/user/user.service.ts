@@ -18,7 +18,7 @@ export class UserService {
     return result;
   }
 
-  // Kullanıcı Güncelleme (Dükkan Bilgileri, ADRES, İL ve İLÇE Eklendi)
+  // Kullanıcı Güncelleme (Dükkan Bilgileri, ADRES, İL, İLÇE ve SOSYAL MEDYA Eklendi)
   async updateUser(userId: number, data: any) {
     const updateData: any = {};
 
@@ -35,9 +35,16 @@ export class UserService {
     if (data.tagline !== undefined) updateData.tagline = data.tagline;
     if (data.address !== undefined) updateData.address = data.address;
     
-    // 🚀🚀 İŞTE EKSİK OLAN YENİ KRİTİK SATIRLAR (Gümrük Kapısı Açıldı) 🚀🚀
+    // 🌍 İl ve İlçe
     if (data.city !== undefined) updateData.city = data.city;
     if (data.district !== undefined) updateData.district = data.district;
+
+    // 🚀🚀 YENİ EKLENEN VİTRİN VE SOSYAL MEDYA ALANLARI 🚀🚀
+    if (data.addressTitle !== undefined) updateData.addressTitle = data.addressTitle;
+    if (data.fullAddress !== undefined) updateData.fullAddress = data.fullAddress;
+    if (data.instagram !== undefined) updateData.instagram = data.instagram;
+    if (data.facebook !== undefined) updateData.facebook = data.facebook;
+    if (data.twitter !== undefined) updateData.twitter = data.twitter;
 
     return this.prisma.user.update({
       where: { id: userId },
