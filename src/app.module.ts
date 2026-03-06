@@ -14,6 +14,7 @@ import { GalleryModule } from './gallery/gallery.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ScheduleModule } from '@nestjs/schedule';
+import { SubscriptionTaskService } from './tasks/subscription-task.service';
 
 // 🚀 SÜPER ADMİN KONTROLCÜSÜ İÇERİ ALINDI
 import { AdminController } from './admin/admin.controller';
@@ -33,6 +34,7 @@ import { AdminController } from './admin/admin.controller';
     ReviewModule,
     GalleryModule, 
     ScheduleModule.forRoot(),
+    SubscriptionTaskService,
   ],
   // 👇 NESTJS'E "ADMİN KAPISINI AÇ" EMRİ VERİLDİ
   controllers: [AppController, AdminController], 

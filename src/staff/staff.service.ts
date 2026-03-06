@@ -1,15 +1,47 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class StaffService {
   constructor(private prisma: PrismaService) {}
 
-  // --- 1. Personel Ekle ---
+  // --- 1. Personel Ekle (LİMİT KONTROLLÜ 🛡️) ---
   async createStaff(userId: number, data: any) {
+    const numericUserId = Number(userId);
+
+    // 🚀 ADIM A: Kullanıcının mevcut planını ve personel sayısını çek
+    const user = await this.prisma.user.findUnique({
+      where: { id: numericUserId },
+      include: {
+        _count: {
+          select: { staff: true } // Mevcut personel sayısı
+        }
+      }
+    });
+
+    if (!user) throw new NotFoundException('Kullanıcı bulunamadı.');
+
+    // 🚀 ADIM B: Plan limitlerini tanımla
+    const planLimits: Record<string, number> = {
+      'TRIAL': 5,  // Deneme süresinde 5 personel
+      'BASIC': 5,  // 500₺ paketinde 5 personel
+      'PRO': 10,   // 800₺ paketinde 10 personel
+      'ULTRA': 999 // 1500₺ paketinde sınırsız
+    };
+
+    const currentLimit = planLimits[user.plan] || 5;
+
+    // 🚀 ADIM C: Limit kontrolü yap
+    if (user._count.staff >= currentLimit) {
+      throw new ForbiddenException(
+        `Mevcut ${user.plan} planınızda en fazla ${currentLimit} personel ekleyebilirsiniz. Lütfen planınızı yükseltin.`
+      );
+    }
+
+    // Limit aşılmadıysa kayda devam et
     return this.prisma.staff.create({
       data: {
-        userId: Number(userId),
+        userId: numericUserId,
         name: data.name,
         phone: data.phone,
         email: data.email,
@@ -24,12 +56,11 @@ export class StaffService {
     });
   }
 
-  // --- 3. Personel Güncelle (EKSİKTİ, YENİ EKLENDİ 🚀) ---
+  // --- 3. Personel Güncelle ---
   async updateStaff(id: number, userId: number, data: any) {
     const numericId = Number(id);
     const numericUserId = Number(userId);
 
-    // Güvenlik: Önce personelin bu kullanıcıya ait olup olmadığını kontrol et
     const existingStaff = await this.prisma.staff.findFirst({
       where: { id: numericId, userId: numericUserId }
     });
@@ -38,7 +69,6 @@ export class StaffService {
       throw new NotFoundException('Personel bulunamadı veya yetkiniz yok.');
     }
 
-    // Personeli güncelle
     return this.prisma.staff.update({
       where: { id: numericId },
       data: {
@@ -49,21 +79,15 @@ export class StaffService {
     });
   }
 
-  // --- 4. Personel Sil (YABANCI ANAHTAR HATASI ÇÖZÜLDÜ 🛡️) ---
+  // --- 4. Personel Sil ---
   async deleteStaff(id: number, userId: number) {
     const numericId = Number(id);
     const numericUserId = Number(userId);
 
-    // ADIM 1: Önce bu personele ait olan izin günlerini (StaffLeave) siliyoruz.
-    // Yoksa veritabanı "izinler sahipsiz kalacak" deyip silme işlemine izin vermez (Foreign Key Hatası).
     await this.prisma.staffLeave.deleteMany({
       where: { staffId: numericId }
     });
 
-    // NOT: Eğer randevusu olan personeli silerken de hata verirse aşağıdaki satırın başındaki // işaretlerini kaldır:
-    // await this.prisma.appointment.deleteMany({ where: { staffId: numericId } });
-
-    // ADIM 2: İzinler temizlendikten sonra personeli güvenle siliyoruz.
     return this.prisma.staff.deleteMany({
       where: { id: numericId, userId: numericUserId }
     });
