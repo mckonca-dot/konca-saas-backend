@@ -7,162 +7,166 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id             Int             @id @default(autoincrement())
-  email          String          @unique
-  hash           String
-  phone          String?
-  shopName       String?  
-  tagline        String?  // Dükkan sloganı / alt yazısı
-  firstName      String?
-  lastName       String?
-  plan           String          @default("FREE")
-  workStart      String          @default("09:00")
-  workEnd        String          @default("18:00")
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  notes          String?  // Dükkan sahibinin özel notları
-  messageCredits Int             @default(50)
-  address        String?
-  
-  // 👇 PAZARYERİ VE VİTRİN İÇİN YENİ EKLENEN KRİTİK ALANLAR
-  city           String?  // İl
-  district       String?  // İlçe
-  coverImage     String?  // Dükkanın arka plan (cover) fotoğrafı
-  logo           String?  // Dükkanın logo fotoğrafı
-  description    String?  // Dükkanın hakkımızda yazısı (varsa)
-
-  isAdmin      Boolean   @default(false) // Senin hesabını Admin yapmak için
-  isActive     Boolean   @default(true)  // Siteden kaldırmak (banlamak) için
-  isPromoted   Boolean   @default(false) // Paket satıp "Öne Çıkarmak" için
-
-  // İlişkiler
-  reviews        Review[]
-  galleryItems   GalleryItem[]
-  customers      Customer[]
-  services       Service[]
-  appointments   Appointment[]
-  staff          Staff[]
-  gallery        Gallery[]
-  closures       ShopClosure[] 
-  addressTitle String?
-  fullAddress  String?
-  instagram    String?
-  facebook     String?
-  twitter      String?
-  
-  @@map("users")
+// 🚀 SAAS ABONELİK PLANLARI (Modelin dışında olmalı)
+enum PlanType {
+  TRIAL
+  BASIC
+  PRO
+  ULTRA
 }
 
-model Customer {
-  id             Int           @id @default(autoincrement())
-  name           String
-  phone          String
-  notes          String?
-  userId         Int
-  user           User          @relation(fields: [userId], references: [id])
-  appointments   Appointment[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  hash             String
+  firstName        String?
+  lastName         String?
   
-  @@map("customers")
+  // Dükkan Bilgileri
+  shopName         String?
+  phone            String?
+  tagline          String?
+  description      String?
+  logo             String?
+  coverImage       String?
+  
+  // Adres Bilgileri
+  address          String?
+  addressTitle     String?
+  fullAddress      String?
+  city             String?
+  district         String?
+  
+  // Sosyal Medya
+  instagram        String?
+  facebook         String?
+  twitter          String?
+
+  // Çalışma Saatleri
+  workStart        String?   @default("09:00")
+  workEnd          String?   @default("18:00")
+  
+  // 🚀 SAAS ABONELİK SİSTEMİ
+  plan             PlanType  @default(TRIAL)
+  trialEndsAt      DateTime? // Kayıt olunca +30 gün eklenecek
+  subscriptionEnd  DateTime? // Ödeme yapınca eklenecek
+  isVerified       Boolean   @default(false) // Email onayı
+  verificationCode String?   // Maile giden 6 haneli kod
+  
+  // Mağaza Durumu 
+  isActive         Boolean   @default(true)
+  isPromoted       Boolean   @default(false)
+  isAdmin          Boolean   @default(false)
+
+  // İlişkiler
+  services         Service[]
+  staffs           Staff[]
+  appointments     Appointment[]
+  reviews          Review[]
+  gallery          Gallery[]
+  closures         Closure[]
+  leaves           Leave[]
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 model Service {
-  id             Int           @id @default(autoincrement())
-  name           String
-  duration       Int      
-  price          Decimal
-  isActive       Boolean       @default(true) 
-  userId         Int
-  user           User          @relation(fields: [userId], references: [id])
-  appointments   Appointment[]
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String
+  duration    Int
+  price       Float
+  isActive    Boolean  @default(true)
   
-  @@map("services")
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  appointments Appointment[]
 }
 
 model Staff {
-  id             Int           @id @default(autoincrement())
-  name           String
-  email          String?
-  phone          String   
-  userId         Int
-  user           User          @relation(fields: [userId], references: [id])
-  appointments   Appointment[]
-  leaves         StaffLeave[] 
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String
+  phone       String?
+  email       String?
+  imageUrl    String?
   
-  @@map("staffs")
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  appointments Appointment[]
+  leaves       Leave[]
+}
+
+model Customer {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phone       String
+  notes       String?
+
+  appointments Appointment[]
 }
 
 model Appointment {
-  id             Int           @id @default(autoincrement())
-  dateTime       DateTime
-  status         String        @default("PENDING") 
-  actionToken    String?       @unique            
-  customerId     Int
-  customer       Customer      @relation(fields: [customerId], references: [id])
-  serviceId      Int
-  service        Service       @relation(fields: [serviceId], references: [id])
-  userId         Int
-  user           User          @relation(fields: [userId], references: [id])
-  staffId        Int?
-  staff          Staff?        @relation(fields: [staffId], references: [id])
-  isReminderSent Boolean       @default(false)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  
-  @@map("appointments")
-}
+  id           Int      @id @default(autoincrement())
+  dateTime     DateTime
+  status       String   @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  cancelReason String?
 
-model ShopClosure {
-  id             Int           @id @default(autoincrement())
-  date           String   
-  reason         String?
-  userId         Int
-  user           User          @relation(fields: [userId], references: [id])
-  
-  @@map("shop_closures")
-}
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-model StaffLeave {
-  id             Int           @id @default(autoincrement())
-  date           String   
-  staffId        Int
-  staff          Staff         @relation(fields: [staffId], references: [id])
-  
-  @@map("staff_leaves")
+  serviceId    Int
+  service      Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  staffId      Int?
+  staff        Staff?   @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  customerId   Int
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Review {
-  id             Int           @id @default(autoincrement())
-  rating         Int           // 1 ile 5 arası puan
-  comment        String?       // Müşteri yorumu
-  customerName   String        // Yorumu yapan kişi
-  userId         Int           // Hangi dükkana yapıldı
-  user           User          @relation(fields: [userId], references: [id])
-  createdAt      DateTime      @default(now())
+  id          Int      @id @default(autoincrement())
+  rating      Int
+  comment     String?
   
-  @@map("reviews")
-}
-
-model GalleryItem {
-  id             Int           @id @default(autoincrement())
-  imageUrl       String   
-  modelName      String?
-  userId         Int
-  user           User          @relation(fields: [userId], references: [id])
-  createdAt      DateTime      @default(now())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  @@map("gallery_items")
+  createdAt   DateTime @default(now())
 }
 
 model Gallery {
-  id             Int           @id @default(autoincrement())
-  imageUrl       String
-  userId         Int
-  user           User          @relation(fields: [userId], references: [id])
+  id          Int      @id @default(autoincrement())
+  imageUrl    String
+  modelName   String?
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+}
+
+model Closure {
+  id          Int      @id @default(autoincrement())
+  date        DateTime
+  reason      String?
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Leave {
+  id          Int      @id @default(autoincrement())
+  date        DateTime
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  staffId     Int
+  staff       Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
 }

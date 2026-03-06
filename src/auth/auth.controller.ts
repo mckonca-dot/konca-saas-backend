@@ -6,13 +6,20 @@ import { AuthDto } from './dto';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  // KAYIT OL (Register değil, signup olarak çağırıyoruz)
+  // KAYIT OL (Register)
   @Post('signup')
-  signup(@Body() dto: AuthDto) {
+  signup(@Body() dto: any) {
     return this.authService.signup(dto);
   }
 
-  // GİRİŞ YAP (Login değil, signin olarak çağırıyoruz)
+  // 🚀 YENİ: E-POSTA DOĞRULAMA (OTP) ROTASI
+  @HttpCode(HttpStatus.OK)
+  @Post('verify')
+  verifyEmail(@Body() dto: any) {
+    return this.authService.verifyEmail(dto);
+  }
+
+  // GİRİŞ YAP (Login)
   @HttpCode(HttpStatus.OK)
   @Post('signin')
   signin(@Body() dto: AuthDto) {
