@@ -1,42 +1,37 @@
-import { Controller, Get, Patch, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Body, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { AdminService } from './admin.service';
+import { AuthGuard } from '@nestjs/passport';
 import { PrismaService } from '../prisma/prisma.service';
 
+@UseGuards(AuthGuard('jwt'))
 @Controller('admin')
 export class AdminController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private adminService: AdminService,
+    private prisma: PrismaService
+  ) {}
+
+  // 🛡️ Sadece Süper Adminlerin Girmesini Sağlayan Güvenlik Kilidi
+  private async checkAdmin(req: any) {
+    const user = await this.prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user || !user.isAdmin) throw new ForbiddenException('Bu işlem için yetkiniz yok.');
+  }
 
   @Get('dashboard')
-  async getAdminStats() {
-    const shops = await this.prisma.user.findMany({
-      where: { isAdmin: false },
-      include: {
-        _count: { select: { appointments: true } },
-        appointments: { select: { service: { select: { price: true } } } }
-      }
-    });
-
-    return shops.map(shop => ({
-      id: shop.id,
-      shopName: shop.shopName,
-      email: shop.email,
-      city: shop.city,
-      isPromoted: shop.isPromoted,
-      isActive: shop.isActive,
-      totalAppointments: shop._count.appointments,
-      totalEarnings: shop.appointments.reduce((sum, app) => sum + Number(app.service?.price || 0), 0)
-    }));
+  async getDashboard(@Request() req) {
+    await this.checkAdmin(req);
+    return this.adminService.getDashboard();
   }
 
   @Patch('shop/:id')
-  updateShopStatus(@Param('id') id: string, @Body() data: any) {
-    return this.prisma.user.update({
-      where: { id: Number(id) },
-      data: { isActive: data.isActive, isPromoted: data.isPromoted }
-    });
+  async updateShop(@Request() req, @Param('id') id: string, @Body() data: any) {
+    await this.checkAdmin(req);
+    return this.adminService.updateShop(Number(id), data);
   }
 
   @Delete('shop/:id')
-  deleteShop(@Param('id') id: string) {
-    return this.prisma.user.delete({ where: { id: Number(id) } });
+  async deleteShop(@Request() req, @Param('id') id: string) {
+    await this.checkAdmin(req);
+    return this.adminService.deleteShop(Number(id));
   }
 }
