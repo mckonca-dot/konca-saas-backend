@@ -64,4 +64,16 @@ export class UserService {
       }
     });
   }
+
+  // 🚀 Mesaj Şablonlarını Güncelleme
+  async updateTemplates(userId: number, templates: any) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        msgTemplateOnay: templates.onay,
+        msgTemplateIptal: templates.iptal,
+        msgTemplateHatirlatma: templates.hatirlatma,
+      },
+    });
+  }
 }

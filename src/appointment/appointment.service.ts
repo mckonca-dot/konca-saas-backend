@@ -12,25 +12,19 @@ export class AppointmentService {
 
   // 🚀 NİHAİ DEDEKTİF: JavaScript'in saat formatlarını çöpe atıp sadece rakamları okur!
   private parseDateStrict(input: any): Date {
-    // Ne gelirse gelsin zorla yazıya (string) çevir
     const str = input instanceof Date ? input.toISOString() : String(input).trim();
-    
-    // Metnin içindeki tüm rakam gruplarını yakala
     const match = str.match(/\d+/g);
     if (!match || match.length < 5) return new Date();
 
     let year, month, day, hours, minutes;
     
-    // Format ayrımı (Yıl başta mı sonda mı?)
     if (match.length === 4) {
-        // Dashboard Formatı: YYYY-MM-DD
         year = Number(match);
-        month = Number(match) - 1; // Ayları 0'dan başlatır
+        month = Number(match) - 1;
         day = Number(match);
         hours = Number(match);
         minutes = Number(match);
     } else {
-        // Chat Widget Formatı: DD.MM.YYYY
         day = Number(match);
         month = Number(match) - 1;
         year = Number(match);
@@ -38,20 +32,20 @@ export class AppointmentService {
         minutes = Number(match);
     }
 
-    // 🚀 SAATİ ZORLA 3 SAAT GERİ ALIYORUZ!
-    // Örneğin siteden 15:00 seçildiyse (hours = 15), veritabanına 12:00 UTC olarak kaydedilecek.
-    // Dashboard bunu okurken üzerine tekrar +3 Türkiye saati ekleyip tam 15:00 gösterecek!
     const finalDate = new Date(Date.UTC(year, month, day, hours - 3, minutes));
     
-    // 📸 İTİRAF RAPORU: Bu loglar Render ekranına her şeyi yazacak!
-    console.log(`\n=========================================`);
-    console.log(`🕒 SAAT DÜZELTME RAPORU`);
-    console.log(`Gelen Ham Veri: ${str}`);
-    console.log(`Sökülen Saf Saat: ${hours}:${minutes}`);
-    console.log(`Veritabanına Yazılan (UTC -3): ${finalDate.toISOString()}`);
-    console.log(`=========================================\n`);
-    
     return finalDate;
+  }
+
+  // 🚀 SİHİRLİ DÖNÜŞTÜRÜCÜ: Şablonlardaki etiketleri gerçek verilerle değiştirir
+  private formatTemplate(template: string, data: any): string {
+    if (!template) return "";
+    return template
+      .replace(/\[MUSTERI_ADI\]/g, data.customerName || "Müşterimiz")
+      .replace(/\[TARIH\]/g, data.date || "")
+      .replace(/\[SAAT\]/g, data.time || "")
+      .replace(/\[ISLEM\]/g, data.serviceName || "")
+      .replace(/\[DUKKAN_ADI\]/g, data.shopName || "Kuaför Salonu");
   }
 
   // --- 1. Randevuları Listele ---
@@ -68,15 +62,8 @@ export class AppointmentService {
     const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote } = data;
 
     const appointmentDate = this.parseDateStrict(dateTime);
-    const now = new Date();
-
-    if (isNaN(appointmentDate.getTime())) {
-       throw new BadRequestException('Tarih formatı anlaşılamadı!');
-    }
-    
-    if (appointmentDate.getDay() === 0) {
-        throw new BadRequestException('Pazar günleri dükkanımız kapalıdır.');
-    }
+    if (isNaN(appointmentDate.getTime())) throw new BadRequestException('Tarih formatı anlaşılamadı!');
+    if (appointmentDate.getDay() === 0) throw new BadRequestException('Pazar günleri dükkanımız kapalıdır.');
 
     const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
     if (!service) throw new BadRequestException('Hizmet bulunamadı.');
@@ -93,6 +80,9 @@ export class AppointmentService {
         staff = await this.prisma.staff.findUnique({ where: { id: Number(staffId) } });
     }
 
+    // 🚀 Dükkan Sahibini (User) ve Şablonlarını Çekiyoruz
+    const user = await this.prisma.user.findUnique({ where: { id: userId || 1 } });
+
     const appointment = await this.prisma.appointment.create({
       data: {
         dateTime: appointmentDate,
@@ -106,25 +96,30 @@ export class AppointmentService {
       include: { customer: true, service: true, staff: true }
     });
 
-    const dateStr = appointmentDate.toLocaleString('tr-TR', {
-        timeZone: 'Europe/Istanbul',
-        day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-    });
+    const dateOnlyStr = appointmentDate.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
+    const timeOnlyStr = appointmentDate.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
 
-    const patronMesaj = 
-      `🔔 *YENİ RANDEVU EKLENDİ*\n\n` +
-      `📞 *Müşteri:* ${cName}\n` +
-      `✂️ *Hizmet:* ${service.name}\n` +
-      `🗓 *Tarih:* ${dateStr}\n` +
+    // 📱 PERSONEL/PATRON BİLDİRİMİ (Bunu sabit bıraktık ki dükkan içi bilgi net olsun)
+    const patronMesaj = `🔔 *YENİ RANDEVU EKLENDİ*\n\n📞 *Müşteri:* ${cName}\n✂️ *Hizmet:* ${service.name}\n🗓 *Tarih:* ${dateOnlyStr} - ${timeOnlyStr}\n` +
       (staff ? `👤 *Personel:* ${staff.name}\n` : ``) +
       (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
-      `Sistem tarafından otomatik onaylanıp takvime eklendi.`;
+      `Sistem tarafından takvime eklendi.`;
 
     const targetPhone = staff?.phone ? staff.phone : '905319485682'; 
     await this.notifier.sendMessage(userId, targetPhone, patronMesaj); 
 
+    // 📱 MÜŞTERİ BİLDİRİMİ (DİNAMİK ŞABLON)
     if (cPhone) {
-      const musteriMesaj = `Sayın ${cName}, ${dateStr} tarihindeki ${service.name} randevunuz başarıyla oluşturulmuş ve onaylanmıştır. Sizi bekliyoruz!`;
+      const rawTemplate = user?.msgTemplateOnay || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz onaylanmıştır. ✂️\n\n📍 [DUKKAN_ADI]";
+      
+      const musteriMesaj = this.formatTemplate(rawTemplate, {
+        customerName: cName,
+        date: dateOnlyStr,
+        time: timeOnlyStr,
+        serviceName: service.name,
+        shopName: user?.shopName
+      });
+
       await this.notifier.sendMessage(userId, cPhone, musteriMesaj);
     }
     
@@ -141,22 +136,30 @@ export class AppointmentService {
     const appointment = await this.prisma.appointment.update({
       where: { id: Number(id) },
       data: { status: data.status },
-      include: { customer: true, service: true }
+      include: { customer: true, service: true, user: true } // 🚀 User'ı da ekledik ki şablonları alabilelim
     });
     
     try {
-        const dateStr = new Date(appointment.dateTime).toLocaleString('tr-TR', { 
-            timeZone: 'Europe/Istanbul',
-            hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'long' 
-        });
+        const dateOnlyStr = new Date(appointment.dateTime).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
+        const timeOnlyStr = new Date(appointment.dateTime).toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
         
-        if (data.status === 'CANCELLED') {
-             const reasonText = data.cancelReason ? `\n\n📝 *İptal Sebebi:* ${data.cancelReason}` : '';
-             const iptalMesaji = `❌ Sayın ${appointment.customer?.name || 'Müşterimiz'}, ${dateStr} tarihindeki randevunuz maalesef iptal edilmiştir.${reasonText}\n\nAnlayışınız için teşekkür eder, yeni bir randevu için sitemizi ziyaret etmenizi rica ederiz.`;
+        if (data.status === 'CANCELLED' && appointment.customer?.phone) {
+             const rawTemplate = appointment.user?.msgTemplateIptal || "Sayın [MUSTERI_ADI],\n\n[TARIH] - [SAAT] tarihli [ISLEM] randevunuz iptal edilmiştir.\n\n📍 [DUKKAN_ADI]";
              
-             if (appointment.customer?.phone) {
-                 await this.notifier.sendMessage(appointment.userId, appointment.customer.phone, iptalMesaji);
+             let iptalMesaji = this.formatTemplate(rawTemplate, {
+                customerName: appointment.customer?.name,
+                date: dateOnlyStr,
+                time: timeOnlyStr,
+                serviceName: appointment.service?.name,
+                shopName: appointment.user?.shopName
+             });
+
+             // Eğer iptal sebebi girilmişse mesajın sonuna ekle
+             if (data.cancelReason) {
+                iptalMesaji += `\n\n📝 İptal Sebebi: ${data.cancelReason}`;
              }
+
+             await this.notifier.sendMessage(appointment.userId, appointment.customer.phone, iptalMesaji);
         }
     } catch (e) {
         console.log("Bildirim hatası:", e);
@@ -182,18 +185,27 @@ export class AppointmentService {
       });
 
       for (const app of upcomingAppointments) {
-        const timeStr = app.dateTime.toLocaleTimeString('tr-TR', { 
-            timeZone: 'Europe/Istanbul',
-            hour: '2-digit', minute: '2-digit' 
-        });
+        const dateOnlyStr = app.dateTime.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
+        const timeOnlyStr = app.dateTime.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
         
+        // 📱 MÜŞTERİYE DİNAMİK HATIRLATMA
         if (app.customer && app.customer.phone) {
-            const customerMessage = `Merhaba ${app.customer.name}, ${app.user?.shopName || 'Kuaför'} salonundaki ${app.service.name} randevunuza yaklaşık 1 saat kalmıştır (${timeStr}). Bizi tercih ettiğiniz için teşekkür ederiz!`;
+            const rawTemplate = app.user?.msgTemplateHatirlatma || "Merhaba [MUSTERI_ADI]! 🌟\nYarın saat [SAAT]'te [ISLEM] randevunuz olduğunu hatırlatmak isteriz.\n\n📍 [DUKKAN_ADI]";
+            
+            const customerMessage = this.formatTemplate(rawTemplate, {
+                customerName: app.customer?.name,
+                date: dateOnlyStr,
+                time: timeOnlyStr,
+                serviceName: app.service?.name,
+                shopName: app.user?.shopName
+            });
+
             await this.notifier.sendMessage(app.userId, app.customer.phone, customerMessage);
         }
 
+        // 📱 PERSONELE SABİT HATIRLATMA
         if (app.staff && app.staff.phone) {
-            const staffMessage = `🔔 DİKKAT: Sayın ${app.staff.name}, 1 saat sonra (${timeStr}) ${app.customer?.name || 'Müşteri'} isimli müşteri ile ${app.service.name} randevunuz bulunmaktadır. Lütfen hazırlıklarınızı tamamlayın.`;
+            const staffMessage = `🔔 DİKKAT: Sayın ${app.staff.name}, 1 saat sonra (${timeOnlyStr}) ${app.customer?.name || 'Müşteri'} isimli müşteri ile ${app.service.name} randevunuz bulunmaktadır. Lütfen hazırlıklarınızı tamamlayın.`;
             await this.notifier.sendMessage(app.userId, app.staff.phone, staffMessage);
         }
 

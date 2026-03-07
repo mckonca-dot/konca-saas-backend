@@ -28,4 +28,11 @@ export class UserController {
     console.log("Gelen Saat Verisi:", body);
     return this.userService.updateWorkHours(req.user.id, body.workStart, body.workEnd);
   }
+
+  // 🚀 Mesaj Şablonlarını Güncelleme Rotası
+ @UseGuards(AuthGuard('jwt'))
+  @Patch('me/templates')
+  async updateTemplates(@Req() req: any, @Body() body: any) { // 🚀 @Request yerine @Req() yaptık
+    return this.userService.updateTemplates(req.user.id, body); // 🚀 usersService'deki 's' harfini sildik
+  }
 }
