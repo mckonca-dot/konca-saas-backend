@@ -16,6 +16,7 @@ import { GalleryModule } from './gallery/gallery.module';
 import { PublicModule } from './public/public.module';
 import { AdminModule } from './admin/admin.module';
 import { SubscriptionTaskService } from './tasks/subscription-task.service';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { SubscriptionTaskService } from './tasks/subscription-task.service';
     GalleryModule,
     PublicModule,
     AdminModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [
