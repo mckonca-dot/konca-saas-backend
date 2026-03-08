@@ -12,7 +12,7 @@ export class ServiceService {
         userId,
         name: dto.name,
         duration: dto.duration ? Number(dto.duration) : 30,
-        price: dto.price,
+        price: Number(dto.price), // 🚀 KRİTİK DÜZELTME: Fiyatı zorla sayıya çevirdik!
         isActive: true, // Varsayılan olarak aktif başlasın
       },
     });
@@ -43,8 +43,8 @@ export class ServiceService {
       data: {
         name: dto.name,
         duration: dto.duration ? Number(dto.duration) : undefined,
-        price: dto.price,
-        isActive: dto.isActive, // <--- KRİTİK EKLEME: Bunu ekledik!
+        price: dto.price !== undefined ? Number(dto.price) : undefined, // 🚀 KRİTİK DÜZELTME: Güncellerken de sayıya çevirdik!
+        isActive: dto.isActive, 
       }
     });
   }
