@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-// 🚀 DÜZELTME 1: İhtiyacımız olan sürüm çekici ve tarayıcı araçlarını import ettik
 import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestWaWebVersion, Browsers } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode';
@@ -15,8 +14,10 @@ export class NotificationService {
   // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT ---
   async initializeClient(shopId: number) {
     const currentStatus = this.statuses.get(shopId);
-    if (currentStatus === 'INITIALIZING' || currentStatus === 'CONNECTED' || this.sockets.has(shopId)) {
-        console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor, yeni istek engellendi.`);
+    
+    // 🚀 DÜZELTME 1: Eğer zaten bağlanıyorsa veya bağlıysa ikinci bir istek gelmesini engelle
+    if (currentStatus === 'INITIALIZING' || currentStatus === 'CONNECTED') {
+        console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor (${currentStatus}), yeni istek engellendi.`);
         return;
     }
 
@@ -26,19 +27,21 @@ export class NotificationService {
     const authFolder = `./auth_info/shop_${shopId}`;
     const { state, saveCreds } = await useMultiFileAuthState(authFolder);
 
-    // 🚀 DÜZELTME 2: WhatsApp'ın bizi eski sürüm sanıp atmasını engellemek için anlık güncel sürümü çekiyoruz
     const { version } = await fetchLatestWaWebVersion();
     console.log(`[Mağaza ${shopId}] Güncel WhatsApp Sürümü Kullanılıyor: v${version.join('.')}`);
 
     const sock = makeWASocket({
-      version, // 🚀 Güncel sürüm maskemiz
-      browser: Browsers.macOS('Desktop'), // 🚀 Bot gibi değil, sıradan bir Mac Bilgisayar gibi görünüyoruz
+      version, 
+      browser: Browsers.macOS('Desktop'), 
       auth: state,
       printQRInTerminal: false, 
       logger: pino({ level: 'error' }) as any, 
       syncFullHistory: false, 
       generateHighQualityLinkPreview: false, 
     });
+
+    // 🚀 DÜZELTME 2: Socket oluşturulur oluşturulmaz haritaya (Map) kaydet!
+    this.sockets.set(shopId, sock);
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -73,11 +76,13 @@ export class NotificationService {
         
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) {
-          this.sockets.delete(shopId);
-          this.statuses.set(shopId, 'DISCONNECTED'); 
+          // 🚀 DÜZELTME 3: Durumu DISCONNECTED yerine RECONNECTING yapıyoruz ki çakışma olmasın
+          this.statuses.set(shopId, 'RECONNECTING'); 
           
           console.log(`[Mağaza ${shopId}] 3 saniye sonra yeniden denenecek...`);
           setTimeout(() => {
+              // Yeniden bağlanmadan hemen önce durumu sıfırla
+              this.statuses.set(shopId, 'DISCONNECTED'); 
               this.initializeClient(shopId); 
           }, 3000);
         } else {
@@ -93,11 +98,13 @@ export class NotificationService {
       else if (connection === 'open') {
         this.statuses.set(shopId, 'CONNECTED');
         this.qrCodes.delete(shopId);
+        
+        // 🚀 KRİTİK DÜZELTME 4: Bağlantı başarılı olduğunda, GÜNCEL KABLOYU (sock) sisteme zorla tanıt!
+        this.sockets.set(shopId, sock);
+        
         console.log(`[Mağaza ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI (HAFİF MOD)!`);
       }
     });
-
-    this.sockets.set(shopId, sock);
   }
 
   // --- 2. DURUM VE QR KOD SORGULAMA ---
@@ -130,9 +137,11 @@ export class NotificationService {
   // --- 4. MESAJ GÖNDERME MOTORU ---
   async sendMessage(shopId: number, to: string, message: string) {
     const sock = this.sockets.get(shopId);
+    const status = this.statuses.get(shopId);
     
-    if (!sock || this.statuses.get(shopId) !== 'CONNECTED') {
-      console.log(`[Mağaza ${shopId}] WhatsApp bağlı değil, mesaj gönderilemedi.`);
+    if (!sock || status !== 'CONNECTED') {
+      // Neden gönderilemediğini daha net görebilmek için logu güncelledik
+      console.log(`[Mağaza ${shopId}] WhatsApp bağlı değil (Durum: ${status}), mesaj gönderilemedi.`);
       return false;
     }
 
