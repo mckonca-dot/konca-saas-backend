@@ -12,10 +12,10 @@ export class NotificationService {
   private statuses = new Map<number, string>(); 
 
   // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT ---
-  async initializeClient(shopId: number) {
-    const currentStatus = this.statuses.get(shopId);
+  async initializeClient(rawShopId: any) {
+    const shopId = Number(rawShopId); // 🚀 TİP GÜVENLİĞİ: Gelen veri Metin bile olsa Sayıya çevir!
     
-    // 🚀 DÜZELTME 1: Eğer zaten bağlanıyorsa veya bağlıysa ikinci bir istek gelmesini engelle
+    const currentStatus = this.statuses.get(shopId);
     if (currentStatus === 'INITIALIZING' || currentStatus === 'CONNECTED') {
         console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor (${currentStatus}), yeni istek engellendi.`);
         return;
@@ -40,7 +40,6 @@ export class NotificationService {
       generateHighQualityLinkPreview: false, 
     });
 
-    // 🚀 DÜZELTME 2: Socket oluşturulur oluşturulmaz haritaya (Map) kaydet!
     this.sockets.set(shopId, sock);
 
     sock.ev.on('creds.update', saveCreds);
@@ -76,12 +75,9 @@ export class NotificationService {
         
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) {
-          // 🚀 DÜZELTME 3: Durumu DISCONNECTED yerine RECONNECTING yapıyoruz ki çakışma olmasın
           this.statuses.set(shopId, 'RECONNECTING'); 
-          
           console.log(`[Mağaza ${shopId}] 3 saniye sonra yeniden denenecek...`);
           setTimeout(() => {
-              // Yeniden bağlanmadan hemen önce durumu sıfırla
               this.statuses.set(shopId, 'DISCONNECTED'); 
               this.initializeClient(shopId); 
           }, 3000);
@@ -98,17 +94,15 @@ export class NotificationService {
       else if (connection === 'open') {
         this.statuses.set(shopId, 'CONNECTED');
         this.qrCodes.delete(shopId);
-        
-        // 🚀 KRİTİK DÜZELTME 4: Bağlantı başarılı olduğunda, GÜNCEL KABLOYU (sock) sisteme zorla tanıt!
         this.sockets.set(shopId, sock);
-        
         console.log(`[Mağaza ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI (HAFİF MOD)!`);
       }
     });
   }
 
   // --- 2. DURUM VE QR KOD SORGULAMA ---
-  async getStatus(shopId: number) {
+  async getStatus(rawShopId: any) {
+    const shopId = Number(rawShopId); // 🚀 TİP GÜVENLİĞİ
     return {
       status: this.statuses.get(shopId) || 'DISCONNECTED',
       qr: this.qrCodes.get(shopId) || null
@@ -116,7 +110,8 @@ export class NotificationService {
   }
 
   // --- 3. ÇIKIŞ YAP (BAĞLANTIYI KES) ---
-  async logout(shopId: number) {
+  async logout(rawShopId: any) {
+    const shopId = Number(rawShopId); // 🚀 TİP GÜVENLİĞİ
     const sock = this.sockets.get(shopId);
     if (sock) {
       try {
@@ -135,13 +130,14 @@ export class NotificationService {
   }
 
   // --- 4. MESAJ GÖNDERME MOTORU ---
-  async sendMessage(shopId: number, to: string, message: string) {
+  async sendMessage(rawShopId: any, to: string, message: string) {
+    const shopId = Number(rawShopId); // 🚀 İŞTE BÜTÜN SORUNU ÇÖZEN SATIR!
+    
     const sock = this.sockets.get(shopId);
     const status = this.statuses.get(shopId);
     
     if (!sock || status !== 'CONNECTED') {
-      // Neden gönderilemediğini daha net görebilmek için logu güncelledik
-      console.log(`[Mağaza ${shopId}] WhatsApp bağlı değil (Durum: ${status}), mesaj gönderilemedi.`);
+      console.log(`[Mağaza ${shopId}] WhatsApp bağlı değil (Durum: ${status || 'tanımsız'}), mesaj gönderilemedi.`);
       return false;
     }
 
