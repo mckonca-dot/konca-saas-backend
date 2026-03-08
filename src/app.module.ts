@@ -10,7 +10,7 @@ import { ServiceModule } from './service/service.module';
 import { AppointmentModule } from './appointment/appointment.module';
 import { StaffModule } from './staff/staff.module';
 import { CustomerModule } from './customer/customer.module';
-import { WhatsappModule } from './whatsapp/whatsapp.module';
+import { NotificationModule } from './notification/notification.module';
 import { ChatModule } from './chat/chat.module';
 import { GalleryModule } from './gallery/gallery.module';
 import { PublicModule } from './public/public.module';
@@ -29,7 +29,7 @@ import { PaymentModule } from './payment/payment.module';
     AppointmentModule,
     StaffModule,
     CustomerModule,
-    WhatsappModule,
+    NotificationModule,
     ChatModule,
     GalleryModule,
     PublicModule,
