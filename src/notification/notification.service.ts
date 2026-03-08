@@ -7,21 +7,23 @@ import pino from 'pino';
 
 @Injectable()
 export class NotificationService {
-  private sockets = new Map<number, any>();
-  private qrCodes = new Map<number, string>();
-  private statuses = new Map<number, string>(); 
+  // 🚀 SİHİRLİ DOKUNUŞ: Bunları "static" yaptık. 
+  // NestJS yanlışlıkla 2 farklı servis (sekreter) oluştursa bile hafızayı (RAM) ORTAK kullanacaklar!
+  private static sockets = new Map<number, any>();
+  private static qrCodes = new Map<number, string>();
+  private static statuses = new Map<number, string>(); 
 
   // --- 1. KUAFÖRÜN WHATSAPP'INI BAŞLAT ---
   async initializeClient(rawShopId: any) {
-    const shopId = Number(rawShopId); // 🚀 TİP GÜVENLİĞİ: Gelen veri Metin bile olsa Sayıya çevir!
+    const shopId = Number(rawShopId); 
     
-    const currentStatus = this.statuses.get(shopId);
+    const currentStatus = NotificationService.statuses.get(shopId);
     if (currentStatus === 'INITIALIZING' || currentStatus === 'CONNECTED') {
         console.log(`[Mağaza ${shopId}] Zaten bir işlem sürüyor (${currentStatus}), yeni istek engellendi.`);
         return;
     }
 
-    this.statuses.set(shopId, 'INITIALIZING');
+    NotificationService.statuses.set(shopId, 'INITIALIZING');
     console.log(`[Mağaza ${shopId}] RAM Dostu Baileys WhatsApp motoru çalıştırılıyor...`);
 
     const authFolder = `./auth_info/shop_${shopId}`;
@@ -40,7 +42,7 @@ export class NotificationService {
       generateHighQualityLinkPreview: false, 
     });
 
-    this.sockets.set(shopId, sock);
+    NotificationService.sockets.set(shopId, sock);
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -49,8 +51,8 @@ export class NotificationService {
 
       if (qr) {
         const qrDataUrl = await qrcode.toDataURL(qr);
-        this.qrCodes.set(shopId, qrDataUrl);
-        this.statuses.set(shopId, 'QR_READY');
+        NotificationService.qrCodes.set(shopId, qrDataUrl);
+        NotificationService.statuses.set(shopId, 'QR_READY');
         console.log(`[Mağaza ${shopId}] QR Kod hazır! Panelden okutulması bekleniyor...`);
       }
 
@@ -67,24 +69,24 @@ export class NotificationService {
            if (fs.existsSync(authFolder)) {
              fs.rmSync(authFolder, { recursive: true, force: true });
            }
-           this.statuses.set(shopId, 'DISCONNECTED');
-           this.sockets.delete(shopId);
-           this.qrCodes.delete(shopId);
+           NotificationService.statuses.set(shopId, 'DISCONNECTED');
+           NotificationService.sockets.delete(shopId);
+           NotificationService.qrCodes.delete(shopId);
            return; 
         }
         
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) {
-          this.statuses.set(shopId, 'RECONNECTING'); 
+          NotificationService.statuses.set(shopId, 'RECONNECTING'); 
           console.log(`[Mağaza ${shopId}] 3 saniye sonra yeniden denenecek...`);
           setTimeout(() => {
-              this.statuses.set(shopId, 'DISCONNECTED'); 
+              NotificationService.statuses.set(shopId, 'DISCONNECTED'); 
               this.initializeClient(shopId); 
           }, 3000);
         } else {
-          this.statuses.set(shopId, 'DISCONNECTED');
-          this.sockets.delete(shopId);
-          this.qrCodes.delete(shopId);
+          NotificationService.statuses.set(shopId, 'DISCONNECTED');
+          NotificationService.sockets.delete(shopId);
+          NotificationService.qrCodes.delete(shopId);
           if (fs.existsSync(authFolder)) {
             fs.rmSync(authFolder, { recursive: true, force: true });
           }
@@ -92,9 +94,9 @@ export class NotificationService {
       } 
       
       else if (connection === 'open') {
-        this.statuses.set(shopId, 'CONNECTED');
-        this.qrCodes.delete(shopId);
-        this.sockets.set(shopId, sock);
+        NotificationService.statuses.set(shopId, 'CONNECTED');
+        NotificationService.qrCodes.delete(shopId);
+        NotificationService.sockets.set(shopId, sock);
         console.log(`[Mağaza ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI (HAFİF MOD)!`);
       }
     });
@@ -102,24 +104,24 @@ export class NotificationService {
 
   // --- 2. DURUM VE QR KOD SORGULAMA ---
   async getStatus(rawShopId: any) {
-    const shopId = Number(rawShopId); // 🚀 TİP GÜVENLİĞİ
+    const shopId = Number(rawShopId); 
     return {
-      status: this.statuses.get(shopId) || 'DISCONNECTED',
-      qr: this.qrCodes.get(shopId) || null
+      status: NotificationService.statuses.get(shopId) || 'DISCONNECTED',
+      qr: NotificationService.qrCodes.get(shopId) || null
     };
   }
 
   // --- 3. ÇIKIŞ YAP (BAĞLANTIYI KES) ---
   async logout(rawShopId: any) {
-    const shopId = Number(rawShopId); // 🚀 TİP GÜVENLİĞİ
-    const sock = this.sockets.get(shopId);
+    const shopId = Number(rawShopId); 
+    const sock = NotificationService.sockets.get(shopId);
     if (sock) {
       try {
         await sock.logout();
       } catch (e) { }
-      this.sockets.delete(shopId);
-      this.qrCodes.delete(shopId);
-      this.statuses.set(shopId, 'DISCONNECTED');
+      NotificationService.sockets.delete(shopId);
+      NotificationService.qrCodes.delete(shopId);
+      NotificationService.statuses.set(shopId, 'DISCONNECTED');
       
       const authFolder = `./auth_info/shop_${shopId}`;
       if (fs.existsSync(authFolder)) {
@@ -131,10 +133,11 @@ export class NotificationService {
 
   // --- 4. MESAJ GÖNDERME MOTORU ---
   async sendMessage(rawShopId: any, to: string, message: string) {
-    const shopId = Number(rawShopId); // 🚀 İŞTE BÜTÜN SORUNU ÇÖZEN SATIR!
+    const shopId = Number(rawShopId); 
     
-    const sock = this.sockets.get(shopId);
-    const status = this.statuses.get(shopId);
+    // 🚀 Artık tüm sekreterler ORTAK tahtaya (static variables) bakıyor!
+    const sock = NotificationService.sockets.get(shopId);
+    const status = NotificationService.statuses.get(shopId);
     
     if (!sock || status !== 'CONNECTED') {
       console.log(`[Mağaza ${shopId}] WhatsApp bağlı değil (Durum: ${status || 'tanımsız'}), mesaj gönderilemedi.`);
