@@ -107,103 +107,105 @@ export class PublicService {
     return d;
   }
 
-  // --- 🚀 RANDEVU OLUŞTURMA VE DİNAMİK WHATSAPP BİLDİRİM MOTORU ---
+// --- 🚀 RANDEVU OLUŞTURMA VE DİNAMİK WHATSAPP BİLDİRİM MOTORU ---
   async createPublicAppointment(userId: number, data: any) {
-    const { serviceId, dateTime, customerName, customerPhone, staffId, customerNote } = data;
-
-    const shop = await this.prisma.user.findUnique({ where: { id: userId }});
-    if (!shop || !shop.isActive) throw new BadRequestException('Bu dükkan şu anda randevu kabul etmemektedir.');
-
-    const appointmentStart = this.parseDateStrict(dateTime);
-    const now = new Date();
-
-    if (isNaN(appointmentStart.getTime())) throw new BadRequestException('Tarih formatı geçersiz!');
-
-    const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
-    if (!service) throw new BadRequestException('Hizmet bulunamadı.');
-    if (!service.isActive) throw new BadRequestException('Bu hizmet şu an kullanılamıyor.');
-
-    const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000);
-    const startOfDay = new Date(appointmentStart); startOfDay.setHours(0,0,0,0);
-    const endOfDay = new Date(appointmentStart); endOfDay.setHours(23,59,59,999);
-
-    const existingAppointments = await this.prisma.appointment.findMany({
-        where: {
-            userId: userId,
-            dateTime: { gte: startOfDay, lte: endOfDay },
-            ...(staffId ? { staffId: Number(staffId) } : {}),
-            status: { not: 'CANCELLED' }
-        },
-        include: { service: true }
-    });
-
-    for (const apt of existingAppointments) {
-        const aptStart = new Date(apt.dateTime);
-        const aptEnd = new Date(aptStart.getTime() + apt.service.duration * 60000);
-
-        if (aptStart < appointmentEnd && aptEnd > appointmentStart) {
-            throw new BadRequestException('⚠️ Seçilen saat aralığı dolu. Lütfen başka bir saat seçin.');
-        }
-    }
-
-    let customer = await this.prisma.customer.findFirst({ where: { phone: customerPhone, userId: userId } });
-    if (!customer) {
-      customer = await this.prisma.customer.create({
-        data: { name: customerName, phone: customerPhone, userId: userId }
-      });
-    }
-
-    const newAppointment = await this.prisma.appointment.create({
-      data: {
-        dateTime: appointmentStart,
-        status: 'CONFIRMED',
-        note: customerNote || "", // 🚀 Müşteri Notu eklendi
-        customer: { connect: { id: customer.id } },
-        service: { connect: { id: Number(serviceId) } },
-        user: { connect: { id: userId } },
-        ...(staffId && { staff: { connect: { id: Number(staffId) } } })
-      },
-      include: { service: true, staff: true }
-    });
-
-    // 📱 WHATSAPP BİLDİRİM ZEKASI (ŞABLON OKUYUCU EKLENDİ)
     try {
-        const dateOnlyStr = appointmentStart.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
-        const timeOnlyStr = appointmentStart.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
+      const { serviceId, dateTime, customerName, customerPhone, staffId, customerNote } = data;
 
-        // 1. Müşteri İçin Şablonlu Mesaj
-        if (customerPhone) {
-            // Dükkanın şablonunu çek, yoksa varsayılanı kullan
-            const rawTemplate = shop.msgTemplateOnay || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz başarıyla oluşturulmuştur. ✂️\n\nBizi tercih ettiğiniz için teşekkür ederiz.\n📍 [DUKKAN_ADI]";
-            
-            // Şablondaki etiketleri gerçek verilerle değiştir
-            const musteriMesaj = rawTemplate
-              .replace(/\[MUSTERI_ADI\]/g, customerName)
-              .replace(/\[TARIH\]/g, dateOnlyStr)
-              .replace(/\[SAAT\]/g, timeOnlyStr)
-              .replace(/\[ISLEM\]/g, service.name)
-              .replace(/\[DUKKAN_ADI\]/g, shop.shopName || 'İşletmemiz');
+      const safeUserId = Number(userId);
+      const safeServiceId = Number(serviceId);
 
-            await this.notifier.sendMessage(userId, customerPhone, musteriMesaj);
-        }
+      const shop = await this.prisma.user.findUnique({ where: { id: safeUserId }});
+      if (!shop || !shop.isActive) throw new BadRequestException('Bu dükkan şu anda randevu kabul etmemektedir.');
 
-        // 2. Patron/Personel İçin Bilgi Mesajı (Bu sabit kalsın ki dükkan net anlasın)
-        const patronMesaj = 
-            `🔔 *SİTEDEN YENİ RANDEVU EKLENDİ*\n\n` +
-            `📞 *Müşteri:* ${customerName}\n` +
-            `✂️ *Hizmet:* ${service.name}\n` +
-            `🗓 *Tarih:* ${dateOnlyStr} - Saat: ${timeOnlyStr}\n` +
-            (newAppointment.staff ? `👤 *Personel:* ${newAppointment.staff.name}\n` : ``) +
-            (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
-            `Sistem tarafından otomatik onaylanıp takvime eklendi.`;
+      const appointmentStart = this.parseDateStrict(dateTime);
+      if (isNaN(appointmentStart.getTime())) throw new BadRequestException('Tarih formatı geçersiz!');
 
-        const targetPhone = newAppointment.staff?.phone ? newAppointment.staff.phone : '905319485682';
-        await this.notifier.sendMessage(userId, targetPhone, patronMesaj);
+      const service = await this.prisma.service.findUnique({ where: { id: safeServiceId } });
+      if (!service) throw new BadRequestException('Hizmet bulunamadı.');
 
-    } catch (error) {
-        console.error("WhatsApp Bildirim Hatası (Public):", error);
+      const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000);
+      const startOfDay = new Date(appointmentStart); startOfDay.setHours(0,0,0,0);
+      const endOfDay = new Date(appointmentStart); endOfDay.setHours(23,59,59,999);
+
+      const existingAppointments = await this.prisma.appointment.findMany({
+          where: {
+              userId: safeUserId,
+              dateTime: { gte: startOfDay, lte: endOfDay },
+              ...(staffId ? { staffId: Number(staffId) } : {}),
+              status: { not: 'CANCELLED' }
+          },
+          include: { service: true }
+      });
+
+      for (const apt of existingAppointments) {
+          const aptStart = new Date(apt.dateTime);
+          const aptEnd = new Date(aptStart.getTime() + apt.service.duration * 60000);
+          if (aptStart < appointmentEnd && aptEnd > appointmentStart) {
+              throw new BadRequestException('⚠️ Seçilen saat aralığı dolu. Lütfen başka bir saat seçin.');
+          }
+      }
+
+      let customer = await this.prisma.customer.findFirst({ where: { phone: customerPhone, userId: safeUserId } });
+      if (!customer) {
+        customer = await this.prisma.customer.create({
+          data: { name: customerName, phone: customerPhone, userId: safeUserId }
+        });
+      }
+
+      // 🚀 PRISMA HATASINI GİDEREN KAYIT (note alanı kaldırıldı, staffId güvenli hale getirildi)
+      const newAppointment = await this.prisma.appointment.create({
+        data: {
+          dateTime: appointmentStart,
+          status: 'CONFIRMED',
+          customer: { connect: { id: customer.id } },
+          service: { connect: { id: safeServiceId } },
+          user: { connect: { id: safeUserId } },
+          ...(staffId ? { staff: { connect: { id: Number(staffId) } } } : {})
+        },
+        include: { service: true, staff: true }
+      });
+
+      // 📱 WHATSAPP BİLDİRİMİ
+      try {
+          const dateOnlyStr = appointmentStart.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
+          const timeOnlyStr = appointmentStart.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
+
+          if (customerPhone) {
+              const rawTemplate = shop.msgTemplateOnay || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz başarıyla oluşturulmuştur. ✂️\n\n📍 [DUKKAN_ADI]";
+              const musteriMesaj = rawTemplate
+                .replace(/\[MUSTERI_ADI\]/g, customerName)
+                .replace(/\[TARIH\]/g, dateOnlyStr)
+                .replace(/\[SAAT\]/g, timeOnlyStr)
+                .replace(/\[ISLEM\]/g, service.name)
+                .replace(/\[DUKKAN_ADI\]/g, shop.shopName || 'İşletmemiz');
+
+              await this.notifier.sendMessage(safeUserId, customerPhone, musteriMesaj);
+          }
+
+          // 🚀 STAFF HATASINI ÇÖZEN KISIM (Any cast ile TypeScript susturuldu)
+          const staffObj = (newAppointment as any).staff;
+          const patronMesaj = 
+              `🔔 *SİTEDEN YENİ RANDEVU EKLENDİ*\n\n` +
+              `📞 *Müşteri:* ${customerName}\n` +
+              `✂️ *Hizmet:* ${service.name}\n` +
+              `🗓 *Tarih:* ${dateOnlyStr} - Saat: ${timeOnlyStr}\n` +
+              (staffObj ? `👤 *Personel:* ${staffObj.name}\n` : ``) +
+              (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
+              `Sistem tarafından otomatik onaylandı.`;
+
+          const targetPhone = staffObj?.phone ? staffObj.phone : '905319485682';
+          await this.notifier.sendMessage(safeUserId, targetPhone, patronMesaj);
+
+      } catch (waError) {
+          console.error("WhatsApp Hatası:", waError);
+      }
+
+      return newAppointment;
+
+    } catch (error: any) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException('Randevu oluşturulurken bir hata oluştu.');
     }
-
-    return newAppointment;
   }
 }
