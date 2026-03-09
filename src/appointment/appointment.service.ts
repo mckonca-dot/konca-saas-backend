@@ -131,38 +131,46 @@ export class AppointmentService {
     return this.prisma.appointment.delete({ where: { id: Number(id) } });
   }
 
-  // --- 4. Güncelleme ve İPTAL ETME ---
+  // --- 4. Güncelleme ve İPTAL ETME (WHATSAPP ENTEGRELİ) ---
   async updateAppointment(id: number, data: any) {
+    // 1. Önce randevuyu güncelleyelim ve müşteri ile dükkan sahibinin bilgilerini (şablonları) çekelim.
     const appointment = await this.prisma.appointment.update({
       where: { id: Number(id) },
       data: { status: data.status },
-      include: { customer: true, service: true, user: true } // 🚀 User'ı da ekledik ki şablonları alabilelim
+      include: { 
+        customer: true, 
+        service: true, 
+        user: true // User tablosunu dahil ettik ki msgTemplateIptal sütununu okuyabilelim
+      } 
     });
     
-    try {
+    // 2. Eğer durum CANCELLED (İptal) olarak güncellendiyse ve müşterinin telefonu varsa WhatsApp'ı ateşle!
+    if (data.status === 'CANCELLED' && appointment.customer?.phone) {
+      try {
         const dateOnlyStr = new Date(appointment.dateTime).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
         const timeOnlyStr = new Date(appointment.dateTime).toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
         
-        if (data.status === 'CANCELLED' && appointment.customer?.phone) {
-             const rawTemplate = appointment.user?.msgTemplateIptal || "Sayın [MUSTERI_ADI],\n\n[TARIH] - [SAAT] tarihli [ISLEM] randevunuz iptal edilmiştir.\n\n📍 [DUKKAN_ADI]";
-             
-             let iptalMesaji = this.formatTemplate(rawTemplate, {
-                customerName: appointment.customer?.name,
-                date: dateOnlyStr,
-                time: timeOnlyStr,
-                serviceName: appointment.service?.name,
-                shopName: appointment.user?.shopName
-             });
+        // Kullanıcının panelden girdiği İptal şablonunu çek. Girmediyse standart bir mesaj koy.
+        const rawTemplate = appointment.user?.msgTemplateIptal || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için olan [ISLEM] randevunuz maalesef iptal edilmiştir.\n\n📍 [DUKKAN_ADI]";
+        
+        // Şablondaki sihirli etiketleri gerçek kelimelerle değiştir
+        let iptalMesaji = rawTemplate
+          .replace(/\[MUSTERI_ADI\]/g, appointment.customer.name || "Müşterimiz")
+          .replace(/\[TARIH\]/g, dateOnlyStr)
+          .replace(/\[SAAT\]/g, timeOnlyStr)
+          .replace(/\[ISLEM\]/g, appointment.service?.name || "işlem")
+          .replace(/\[DUKKAN_ADI\]/g, appointment.user?.shopName || "İşletmemiz");
 
-             // Eğer iptal sebebi girilmişse mesajın sonuna ekle
-             if (data.cancelReason) {
-                iptalMesaji += `\n\n📝 İptal Sebebi: ${data.cancelReason}`;
-             }
-
-             await this.notifier.sendMessage(appointment.userId, appointment.customer.phone, iptalMesaji);
+        // İptal ederken not girildiyse (Frontend destekliyorsa), onu da ekle
+        if (data.cancelReason) {
+            iptalMesaji += `\n\n📝 İptal Sebebi: ${data.cancelReason}`;
         }
-    } catch (e) {
-        console.log("Bildirim hatası:", e);
+
+        // Mesajı fırlat!
+        await this.notifier.sendMessage(appointment.userId, appointment.customer.phone, iptalMesaji);
+      } catch (e) {
+        console.log("❌ İptal mesajı gönderilirken WhatsApp hatası oluştu:", e);
+      }
     }
 
     return appointment;
