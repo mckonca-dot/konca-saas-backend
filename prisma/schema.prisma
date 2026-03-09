@@ -76,6 +76,9 @@ model User {
   msgTemplateIptal      String? @default("Sayın [MUSTERI_ADI],\n\n[TARIH] - [SAAT] tarihli [ISLEM] randevunuz iptal edilmiştir. Yeni bir randevu oluşturmak için sitemizi ziyaret edebilirsiniz. 😔\n\nİyi günler dileriz.\n📍 [DUKKAN_ADI]")
   msgTemplateHatirlatma String? @default("Merhaba [MUSTERI_ADI]! 🌟\n\nYarın saat [SAAT]'te [ISLEM] randevunuz olduğunu hatırlatmak isteriz. Görüşmek üzere!\n\n📍 [DUKKAN_ADI]")
 
+  resetCode         String?
+  resetCodeExpires  DateTime?
+
   @@map("users")
 }
 
