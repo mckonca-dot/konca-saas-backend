@@ -107,7 +107,7 @@ export class PublicService {
     return d;
   }
 
-  // --- 🚀 RANDEVU OLUŞTURMA VE WHATSAPP BİLDİRİM MOTORU ---
+  // --- 🚀 RANDEVU OLUŞTURMA VE DİNAMİK WHATSAPP BİLDİRİM MOTORU ---
   async createPublicAppointment(userId: number, data: any) {
     const { serviceId, dateTime, customerName, customerPhone, staffId, customerNote } = data;
 
@@ -157,6 +157,7 @@ export class PublicService {
       data: {
         dateTime: appointmentStart,
         status: 'CONFIRMED',
+        note: customerNote || "", // 🚀 Müşteri Notu eklendi
         customer: { connect: { id: customer.id } },
         service: { connect: { id: Number(serviceId) } },
         user: { connect: { id: userId } },
@@ -165,23 +166,33 @@ export class PublicService {
       include: { service: true, staff: true }
     });
 
-    // 📱 WHATSAPP BİLDİRİM ZEKASI
+    // 📱 WHATSAPP BİLDİRİM ZEKASI (ŞABLON OKUYUCU EKLENDİ)
     try {
-        const dateStr = appointmentStart.toLocaleString('tr-TR', {
-            timeZone: 'Europe/Istanbul',
-            day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-        });
+        const dateOnlyStr = appointmentStart.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
+        const timeOnlyStr = appointmentStart.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
 
+        // 1. Müşteri İçin Şablonlu Mesaj
         if (customerPhone) {
-            const musteriMesaj = `Sayın ${customerName}, ${dateStr} tarihindeki ${service.name} randevunuz başarıyla oluşturulmuş ve onaylanmıştır. Sizi bekliyoruz!`;
+            // Dükkanın şablonunu çek, yoksa varsayılanı kullan
+            const rawTemplate = shop.msgTemplateOnay || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz başarıyla oluşturulmuştur. ✂️\n\nBizi tercih ettiğiniz için teşekkür ederiz.\n📍 [DUKKAN_ADI]";
+            
+            // Şablondaki etiketleri gerçek verilerle değiştir
+            const musteriMesaj = rawTemplate
+              .replace(/\[MUSTERI_ADI\]/g, customerName)
+              .replace(/\[TARIH\]/g, dateOnlyStr)
+              .replace(/\[SAAT\]/g, timeOnlyStr)
+              .replace(/\[ISLEM\]/g, service.name)
+              .replace(/\[DUKKAN_ADI\]/g, shop.shopName || 'İşletmemiz');
+
             await this.notifier.sendMessage(userId, customerPhone, musteriMesaj);
         }
 
+        // 2. Patron/Personel İçin Bilgi Mesajı (Bu sabit kalsın ki dükkan net anlasın)
         const patronMesaj = 
             `🔔 *SİTEDEN YENİ RANDEVU EKLENDİ*\n\n` +
             `📞 *Müşteri:* ${customerName}\n` +
             `✂️ *Hizmet:* ${service.name}\n` +
-            `🗓 *Tarih:* ${dateStr}\n` +
+            `🗓 *Tarih:* ${dateOnlyStr} - Saat: ${timeOnlyStr}\n` +
             (newAppointment.staff ? `👤 *Personel:* ${newAppointment.staff.name}\n` : ``) +
             (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
             `Sistem tarafından otomatik onaylanıp takvime eklendi.`;
