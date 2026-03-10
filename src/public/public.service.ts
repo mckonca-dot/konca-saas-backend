@@ -6,12 +6,12 @@ import { NotificationService } from '../notification/notification.service';
 export class PublicService {
   constructor(private prisma: PrismaService, private notifier: NotificationService) {}
 
-  // 👇 DÜZELTİLMİŞ: Vitrin için sadece AKTİF dükkanları çeken fonksiyon
+  // 👇 Vitrin (Ana Sayfa) için salonları çeken fonksiyon
   async getAllPublicShops() {
     const shops = await this.prisma.user.findMany({
       where: {
         isAdmin: false, 
-        isActive: true, // Sadece 'Aktif' olan dükkanlar
+        isActive: true, 
       },
       select: {
         id: true, 
@@ -20,7 +20,7 @@ export class PublicService {
         city: true,       
         district: true,   
         coverImage: true,
-        logo: true,
+        logo: true, // 🚀 LOGO BURADA: Ana sayfadaki kartlarda görünmesini sağlar
         isPromoted: true, 
         isActive: true,   
         services: {
@@ -33,7 +33,7 @@ export class PublicService {
     return shops;
   }
 
-  // --- Dükkan Bilgilerini Getir ---
+  // --- Dükkan Detay Bilgilerini Getir ---
   async getShopData(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -48,6 +48,7 @@ export class PublicService {
 
     if (!user || !user.isActive) throw new BadRequestException('Bu dükkan şu anda hizmet vermemektedir.');
     
+    // 🚀 Hash (şifre) hariç tüm verileri (Logo dahil) gönderir
     const { hash, ...shopData } = user;
     return shopData;
   }
@@ -91,7 +92,6 @@ export class PublicService {
     }));
   }
 
-  // 🚀 İŞTE YANLIŞLIKLA SİLDİĞİMİZ FONKSİYON GERİ GELDİ!
   // --- Galeri ---
   async getGallery(userId: number) {
     return this.prisma.galleryItem.findMany({ 
@@ -100,14 +100,14 @@ export class PublicService {
     });
   }
 
-  // 🚀 TERTEMİZ DÖNÜŞTÜRÜCÜ
+  // --- Tarih Dönüştürücü ---
   private parseDateStrict(input: any): Date {
     const d = new Date(input);
     if (isNaN(d.getTime())) return new Date();
     return d;
   }
 
-// --- 🚀 RANDEVU OLUŞTURMA VE DİNAMİK WHATSAPP BİLDİRİM MOTORU ---
+  // --- 🚀 RANDEVU OLUŞTURMA VE DİNAMİK WHATSAPP BİLDİRİM MOTORU ---
   async createPublicAppointment(userId: number, data: any) {
     try {
       const { serviceId, dateTime, customerName, customerPhone, staffId, customerNote } = data;
@@ -153,7 +153,7 @@ export class PublicService {
         });
       }
 
-      // 🚀 PRISMA HATASINI GİDEREN KAYIT (note alanı kaldırıldı, staffId güvenli hale getirildi)
+      // 🚀 Randevu oluşturma (Note alanı olmadan güvenli kayıt)
       const newAppointment = await this.prisma.appointment.create({
         data: {
           dateTime: appointmentStart,
@@ -183,7 +183,6 @@ export class PublicService {
               await this.notifier.sendMessage(safeUserId, customerPhone, musteriMesaj);
           }
 
-          // 🚀 STAFF HATASINI ÇÖZEN KISIM (Any cast ile TypeScript susturuldu)
           const staffObj = (newAppointment as any).staff;
           const patronMesaj = 
               `🔔 *SİTEDEN YENİ RANDEVU EKLENDİ*\n\n` +

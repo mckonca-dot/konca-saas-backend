@@ -18,7 +18,7 @@ export class UserService {
     return result;
   }
 
-  // Kullanıcı Güncelleme (Dükkan Bilgileri, ADRES, İL, İLÇE ve SOSYAL MEDYA Eklendi)
+  // Kullanıcı Güncelleme (Logo ve Kapak Fotoğrafı Desteği Eklendi)
   async updateUser(userId: number, data: any) {
     const updateData: any = {};
 
@@ -39,7 +39,11 @@ export class UserService {
     if (data.city !== undefined) updateData.city = data.city;
     if (data.district !== undefined) updateData.district = data.district;
 
-    // 🚀🚀 YENİ EKLENEN VİTRİN VE SOSYAL MEDYA ALANLARI 🚀🚀
+    // 🚀🚀 KURUMSAL GÖRSELLER (YENİ!) 🚀🚀
+    if (data.logo !== undefined) updateData.logo = data.logo;
+    if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
+
+    // 🚀🚀 VİTRİN VE SOSYAL MEDYA ALANLARI 🚀🚀
     if (data.addressTitle !== undefined) updateData.addressTitle = data.addressTitle;
     if (data.fullAddress !== undefined) updateData.fullAddress = data.fullAddress;
     if (data.instagram !== undefined) updateData.instagram = data.instagram;
