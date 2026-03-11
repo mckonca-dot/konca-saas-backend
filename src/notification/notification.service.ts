@@ -40,6 +40,8 @@ export class NotificationService {
       logger: pino({ level: 'error' }) as any, 
       syncFullHistory: false, 
       generateHighQualityLinkPreview: false, 
+      // 👻 HAYALET MODU 1: Bağlanırken "Çevrimiçi" olarak işaretleme!
+      markOnlineOnConnect: false, 
     });
 
     NotificationService.sockets.set(shopId, sock);
@@ -97,7 +99,15 @@ export class NotificationService {
         NotificationService.statuses.set(shopId, 'CONNECTED');
         NotificationService.qrCodes.delete(shopId);
         NotificationService.sockets.set(shopId, sock);
-        console.log(`[Mağaza ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI (HAFİF MOD)!`);
+        console.log(`[Mağaza ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI (HAYALET MOD DEVREDE)!`);
+        
+        // 👻 HAYALET MODU 2: Bağlantı açıldığında kendini zorla "Çevrimdışı (unavailable)" yap.
+        // Bu sayede WhatsApp "Kullanıcı telefonda değil" diyerek bildirimleri sana göndermeye başlar.
+        try {
+            await sock.sendPresenceUpdate('unavailable');
+        } catch (e) {
+            console.log(`[Mağaza ${shopId}] Durum güncellenirken ufak bir pürüz:`, e);
+        }
       }
     });
   }
