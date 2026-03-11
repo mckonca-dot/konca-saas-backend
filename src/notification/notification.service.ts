@@ -29,7 +29,6 @@ export class NotificationService {
     const sock = makeWASocket({
       version, 
       // 👻 SİHİRLİ DOKUNUŞ 1: Masaüstü uygulaması değil, sıradan bir web tarayıcısı gibi davran!
-      // Bu sayede WhatsApp bildirimleri telefondan kesmez.
       browser: ['KoncaSaaS', 'Chrome', '120.0.0'], 
       auth: state,
       printQRInTerminal: false, 
@@ -37,9 +36,7 @@ export class NotificationService {
       syncFullHistory: false, 
       generateHighQualityLinkPreview: false, 
       // 👻 SİHİRLİ DOKUNUŞ 2: Bağlanırken ASLA çevrimiçi olma.
-      markOnlineOnConnect: false, 
-      // 👻 SİHİRLİ DOKUNUŞ 3: Gelen mesajları asla otomatik okuma!
-      readMessages: false 
+      markOnlineOnConnect: false
     });
 
     NotificationService.sockets.set(shopId, sock);
@@ -90,14 +87,14 @@ export class NotificationService {
         NotificationService.sockets.set(shopId, sock);
         console.log(`[Mağaza ${shopId}] ✅ WHATSAPP BAŞARIYLA BAĞLANDI (DERİN HAYALET MODU)!`);
         
-        // 👻 SİHİRLİ DOKUNUŞ 4: Bağlantı açıldığı an WhatsApp'a "Ben yokum" sinyali gönder.
+        // 👻 SİHİRLİ DOKUNUŞ 3: Bağlantı açıldığı an WhatsApp'a "Ben yokum" sinyali gönder.
         try {
             await sock.sendPresenceUpdate('unavailable');
         } catch (e) {}
       }
     });
 
-    // 👻 SİHİRLİ DOKUNUŞ 5: Biri mesaj attığında bot "Yazıyor..." falan olmasın diye her olayda offline ol.
+    // 👻 SİHİRLİ DOKUNUŞ 4: Biri mesaj attığında bot "Yazıyor..." falan olmasın diye her olayda offline ol.
     sock.ev.on('messages.upsert', async () => {
         try { await sock.sendPresenceUpdate('unavailable'); } catch(e) {}
     });
