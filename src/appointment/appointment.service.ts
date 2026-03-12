@@ -43,105 +43,118 @@ export class AppointmentService {
   async createAppointment(userId: number, data: any) {
     const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote, isManual } = data;
 
-    const appointmentDate = this.parseDateStrict(dateTime);
-    if (appointmentDate.getDay() === 0) throw new BadRequestException('Pazar günleri dükkanımız kapalıdır.');
+    try {
+        const appointmentDate = this.parseDateStrict(dateTime);
+        if (appointmentDate.getDay() === 0) throw new BadRequestException('Pazar günleri dükkanımız kapalıdır.');
 
-    const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
-    if (!service) throw new BadRequestException('Hizmet bulunamadı.');
+        const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
+        if (!service) throw new BadRequestException('Hizmet bulunamadı.');
 
-    // 🚀 ÇAKIŞMA KONTROLÜ (Aynı saate başka randevu var mı?)
-    const appointmentEnd = new Date(appointmentDate.getTime() + service.duration * 60000);
-    const startOfDay = new Date(appointmentDate); startOfDay.setHours(0,0,0,0);
-    const endOfDay = new Date(appointmentDate); endOfDay.setHours(23,59,59,999);
+        // 🚀 ÇAKIŞMA KONTROLÜ
+        const appointmentEnd = new Date(appointmentDate.getTime() + service.duration * 60000);
+        const startOfDay = new Date(appointmentDate); startOfDay.setHours(0,0,0,0);
+        const endOfDay = new Date(appointmentDate); endOfDay.setHours(23,59,59,999);
 
-    const existingAppointments = await this.prisma.appointment.findMany({
-        where: {
-            userId: userId || 1,
-            dateTime: { gte: startOfDay, lte: endOfDay },
-            ...(staffId ? { staffId: Number(staffId) } : {}),
-            status: { not: 'CANCELLED' }
-        },
-        include: { service: true }
-    });
+        const existingAppointments = await this.prisma.appointment.findMany({
+            where: {
+                userId: userId || 1,
+                dateTime: { gte: startOfDay, lte: endOfDay },
+                ...(staffId ? { staffId: Number(staffId) } : {}),
+                status: { not: 'CANCELLED' }
+            },
+            include: { service: true }
+        });
 
-    for (const apt of existingAppointments) {
-        const aptStart = new Date(apt.dateTime);
-        const aptEnd = new Date(aptStart.getTime() + apt.service.duration * 60000);
-        // Eğer yeni randevu mevcut bir randevunun içine düşüyorsa engelle!
-        if (aptStart < appointmentEnd && aptEnd > appointmentDate) {
-            throw new BadRequestException('⚠️ Seçilen saat aralığı şu anda dolu. Lütfen başka bir saat seçin.');
+        for (const apt of existingAppointments) {
+            const aptStart = new Date(apt.dateTime);
+            const aptEnd = new Date(aptStart.getTime() + apt.service.duration * 60000);
+            if (aptStart < appointmentEnd && aptEnd > appointmentDate) {
+                throw new BadRequestException('⚠️ Seçilen saat aralığı şu anda dolu. Lütfen başka bir saat seçin.');
+            }
         }
-    }
 
-    let customer: any = null;
-    if (customerId) {
-       customer = await this.prisma.customer.findUnique({ where: { id: Number(customerId) } });
-    }
-    
-    // Eğer veritabanında müşteri yoksa (Manuel girişteki gibi), önce müşteriyi yarat!
-    if (!customer && customerName && customerPhone) {
-        customer = await this.prisma.customer.findFirst({ where: { phone: customerPhone, userId: userId || 1 } });
-        if (!customer) {
-            customer = await this.prisma.customer.create({
-                data: { name: customerName, phone: customerPhone, userId: userId || 1 }
+        let customer: any = null;
+        if (customerId) {
+           customer = await this.prisma.customer.findUnique({ where: { id: Number(customerId) } });
+        }
+        
+        // 🚀 Müşteri yaratma garantisi
+        if (!customer && customerName) {
+            customer = await this.prisma.customer.findFirst({ 
+                where: { name: customerName, userId: userId || 1 } 
             });
+            if (!customer) {
+                customer = await this.prisma.customer.create({
+                    data: { name: customerName, phone: customerPhone || "", userId: userId || 1 }
+                });
+            }
         }
+
+        const cName = customer?.name || customerName || "Müşteri";
+        const cPhone = customer?.phone || customerPhone || "";
+
+        let staff: any = null;
+        if (staffId) {
+            staff = await this.prisma.staff.findUnique({ where: { id: Number(staffId) } });
+        }
+
+        const user = await this.prisma.user.findUnique({ where: { id: userId || 1 } });
+
+        // 🚀 HATA ÇÖZÜMÜ: Prisma'nın TypeScript krizini çözmek için veriyi adım adım inşa ediyoruz.
+        const appointmentData: any = {
+            dateTime: appointmentDate,
+            status: 'CONFIRMED',
+            service: { connect: { id: Number(serviceId) } },
+            user: { connect: { id: userId || 1 } }
+        };
+
+        // Eğer müşteri varsa kutuya ekle
+        if (customer?.id) {
+            appointmentData.customer = { connect: { id: customer.id } };
+        }
+
+        // Eğer personel seçildiyse kutuya ekle
+        if (staffId) {
+            appointmentData.staff = { connect: { id: Number(staffId) } };
+        }
+
+        // 🚀 Kutuyu Prisma'ya tek seferde gönder
+        const appointment = await this.prisma.appointment.create({
+          data: appointmentData,
+          include: { customer: true, service: true, staff: true }
+        });
+
+        const dateOnlyStr = appointmentDate.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
+        const timeOnlyStr = appointmentDate.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
+
+        // 🛡️ BİLDİRİM KORUMA KALKANI
+        try {
+            if (!isManual) {
+                const patronMesaj = `🔔 *YENİ RANDEVU EKLENDİ*\n\n📞 *Müşteri:* ${cName}\n✂️ *Hizmet:* ${service.name}\n🗓 *Tarih:* ${dateOnlyStr} - ${timeOnlyStr}\n` +
+                  (staff ? `👤 *Personel:* ${staff.name}\n` : ``) +
+                  (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
+                  `Sistem tarafından takvime eklendi.`;
+
+                const targetPhone = staff?.phone ? staff.phone : (user?.phone || '905319485682'); 
+                await this.notifier.sendMessage(userId, targetPhone, patronMesaj); 
+            }
+
+            if (cPhone && cPhone.length > 9) { 
+              const rawTemplate = user?.msgTemplateOnay || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz onaylanmıştır. ✂️\n\n📍 [DUKKAN_ADI]";
+              const musteriMesaj = this.formatTemplate(rawTemplate, {
+                customerName: cName, date: dateOnlyStr, time: timeOnlyStr, serviceName: service.name, shopName: user?.shopName
+              });
+              await this.notifier.sendMessage(userId, cPhone, musteriMesaj);
+            }
+        } catch (smsError) {
+            console.log("⚠️ Mesaj gönderilemedi, ancak randevu başarıyla eklendi.");
+        }
+        
+        return appointment;
+    } catch (error: any) {
+        console.error("❌ RANDEVU OLUŞTURMA HATASI:", error);
+        throw new BadRequestException(error.message || "Randevu oluşturulamadı. Lütfen bilgileri kontrol edin.");
     }
-
-    const cName = customer?.name || customerName || "Müşteri";
-    const cPhone = customer?.phone || customerPhone || "";
-
-    let staff: any = null;
-    if (staffId) {
-        staff = await this.prisma.staff.findUnique({ where: { id: Number(staffId) } });
-    }
-
-    // 🚀 Dükkan Sahibini (User) ve Şablonlarını Çekiyoruz
-    const user = await this.prisma.user.findUnique({ where: { id: userId || 1 } });
-
-    const appointment = await this.prisma.appointment.create({
-      data: {
-        dateTime: appointmentDate,
-        status: 'CONFIRMED', 
-        note: customerNote || "",
-        ...(customer?.id ? { customer: { connect: { id: customer.id } } } : {}),
-        service: { connect: { id: Number(serviceId) } },
-        user: { connect: { id: userId || 1 } },
-        ...(staffId && { staff: { connect: { id: Number(staffId) } } })
-      },
-      include: { customer: true, service: true, staff: true }
-    });
-
-    const dateOnlyStr = appointmentDate.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
-    const timeOnlyStr = appointmentDate.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
-
-    // 📱 PERSONEL/PATRON BİLDİRİMİ (Sadece müşteri kendi siteden aldıysa gitsin, kuaför kendi eklediyse darlama)
-    if (!isManual) {
-        const patronMesaj = `🔔 *YENİ RANDEVU EKLENDİ*\n\n📞 *Müşteri:* ${cName}\n✂️ *Hizmet:* ${service.name}\n🗓 *Tarih:* ${dateOnlyStr} - ${timeOnlyStr}\n` +
-          (staff ? `👤 *Personel:* ${staff.name}\n` : ``) +
-          (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
-          `Sistem tarafından takvime eklendi.`;
-
-        const targetPhone = staff?.phone ? staff.phone : '905319485682'; 
-        await this.notifier.sendMessage(userId, targetPhone, patronMesaj); 
-    }
-
-    // 📱 MÜŞTERİ BİLDİRİMİ (Hem manuel hem otomatik randevularda müşteriye onay gitsin)
-    if (cPhone && cPhone.length > 9) { // Basit bir telefon numarası kontrolü
-      const rawTemplate = user?.msgTemplateOnay || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz onaylanmıştır. ✂️\n\n📍 [DUKKAN_ADI]";
-      
-      const musteriMesaj = this.formatTemplate(rawTemplate, {
-        customerName: cName,
-        date: dateOnlyStr,
-        time: timeOnlyStr,
-        serviceName: service.name,
-        shopName: user?.shopName
-      });
-
-      await this.notifier.sendMessage(userId, cPhone, musteriMesaj);
-    }
-    
-    return appointment;
   }
 
   // --- 3. Silme ---
