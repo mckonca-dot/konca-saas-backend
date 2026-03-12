@@ -10,31 +10,13 @@ export class AppointmentService {
     private notifier: NotificationService
   ) {}
 
-  // 🚀 NİHAİ DEDEKTİF: JavaScript'in saat formatlarını çöpe atıp sadece rakamları okur!
+  // 🚀 HATA DÜZELTİLDİ: Eski regex mantığı çöpe atıldı, saf ve güçlü Date motoru eklendi!
   private parseDateStrict(input: any): Date {
-    const str = input instanceof Date ? input.toISOString() : String(input).trim();
-    const match = str.match(/\d+/g);
-    if (!match || match.length < 5) return new Date();
-
-    let year, month, day, hours, minutes;
-    
-    if (match.length === 4) {
-        year = Number(match);
-        month = Number(match) - 1;
-        day = Number(match);
-        hours = Number(match);
-        minutes = Number(match);
-    } else {
-        day = Number(match);
-        month = Number(match) - 1;
-        year = Number(match);
-        hours = Number(match);
-        minutes = Number(match);
+    const d = new Date(input);
+    if (isNaN(d.getTime())) {
+        throw new BadRequestException('Tarih formatı anlaşılamadı!');
     }
-
-    const finalDate = new Date(Date.UTC(year, month, day, hours - 3, minutes));
-    
-    return finalDate;
+    return d;
   }
 
   // 🚀 SİHİRLİ DÖNÜŞTÜRÜCÜ: Şablonlardaki etiketleri gerçek verilerle değiştirir
@@ -62,7 +44,6 @@ export class AppointmentService {
     const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote, isManual } = data;
 
     const appointmentDate = this.parseDateStrict(dateTime);
-    if (isNaN(appointmentDate.getTime())) throw new BadRequestException('Tarih formatı anlaşılamadı!');
     if (appointmentDate.getDay() === 0) throw new BadRequestException('Pazar günleri dükkanımız kapalıdır.');
 
     const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
@@ -170,27 +151,23 @@ export class AppointmentService {
 
   // --- 4. Güncelleme ve İPTAL ETME (WHATSAPP ENTEGRELİ) ---
   async updateAppointment(id: number, data: any) {
-    // 1. Önce randevuyu güncelleyelim ve müşteri ile dükkan sahibinin bilgilerini (şablonları) çekelim.
     const appointment = await this.prisma.appointment.update({
       where: { id: Number(id) },
       data: { status: data.status },
       include: { 
         customer: true, 
         service: true, 
-        user: true // User tablosunu dahil ettik ki msgTemplateIptal sütununu okuyabilelim
+        user: true 
       } 
     });
     
-    // 2. Eğer durum CANCELLED (İptal) olarak güncellendiyse ve müşterinin telefonu varsa WhatsApp'ı ateşle!
     if (data.status === 'CANCELLED' && appointment.customer?.phone) {
       try {
         const dateOnlyStr = new Date(appointment.dateTime).toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
         const timeOnlyStr = new Date(appointment.dateTime).toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
         
-        // Kullanıcının panelden girdiği İptal şablonunu çek. Girmediyse standart bir mesaj koy.
         const rawTemplate = appointment.user?.msgTemplateIptal || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için olan [ISLEM] randevunuz maalesef iptal edilmiştir.\n\n📍 [DUKKAN_ADI]";
         
-        // Şablondaki sihirli etiketleri gerçek kelimelerle değiştir
         let iptalMesaji = rawTemplate
           .replace(/\[MUSTERI_ADI\]/g, appointment.customer.name || "Müşterimiz")
           .replace(/\[TARIH\]/g, dateOnlyStr)
@@ -198,12 +175,10 @@ export class AppointmentService {
           .replace(/\[ISLEM\]/g, appointment.service?.name || "işlem")
           .replace(/\[DUKKAN_ADI\]/g, appointment.user?.shopName || "İşletmemiz");
 
-        // İptal ederken not girildiyse (Frontend destekliyorsa), onu da ekle
         if (data.cancelReason) {
             iptalMesaji += `\n\n📝 İptal Sebebi: ${data.cancelReason}`;
         }
 
-        // Mesajı fırlat!
         await this.notifier.sendMessage(appointment.userId, appointment.customer.phone, iptalMesaji);
       } catch (e) {
         console.log("❌ İptal mesajı gönderilirken WhatsApp hatası oluştu:", e);
@@ -233,7 +208,6 @@ export class AppointmentService {
         const dateOnlyStr = app.dateTime.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
         const timeOnlyStr = app.dateTime.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
         
-        // 📱 MÜŞTERİYE DİNAMİK HATIRLATMA
         if (app.customer && app.customer.phone) {
             const rawTemplate = app.user?.msgTemplateHatirlatma || "Merhaba [MUSTERI_ADI]! 🌟\nYarın saat [SAAT]'te [ISLEM] randevunuz olduğunu hatırlatmak isteriz.\n\n📍 [DUKKAN_ADI]";
             
@@ -248,7 +222,6 @@ export class AppointmentService {
             await this.notifier.sendMessage(app.userId, app.customer.phone, customerMessage);
         }
 
-        // 📱 PERSONELE SABİT HATIRLATMA
         if (app.staff && app.staff.phone) {
             const staffMessage = `🔔 DİKKAT: Sayın ${app.staff.name}, 1 saat sonra (${timeOnlyStr}) ${app.customer?.name || 'Müşteri'} isimli müşteri ile ${app.service.name} randevunuz bulunmaktadır. Lütfen hazırlıklarınızı tamamlayın.`;
             await this.notifier.sendMessage(app.userId, app.staff.phone, staffMessage);
