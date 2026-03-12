@@ -18,10 +18,23 @@ import { AdminModule } from './admin/admin.module';
 import { SubscriptionTaskService } from './tasks/subscription-task.service';
 import { PaymentModule } from './payment/payment.module';
 
+// 🛡️ GÜVENLİK İÇİN EKLENEN İMPORTLAR (ANTI-DDOS)
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
+    
+    // 🛑 ANTI-DDOS VE SPAM KALKANI (Throttler)
+    // 1 dakika (60000 milisaniye) içinde aynı IP adresinden en fazla 100 isteğe izin verir.
+    // Limiti aşanlar otomatik olarak engellenir.
+    ThrottlerModule.forRoot([{
+      ttl: 60000, 
+      limit: 100, 
+    }]),
+
     AuthModule,
     UserModule,
     PrismaModule,
@@ -40,6 +53,12 @@ import { PaymentModule } from './payment/payment.module';
   providers: [
     AppService,
     SubscriptionTaskService,
+    
+    // 🛡️ Kalkanı tüm sisteme (Global) uyguluyoruz
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
