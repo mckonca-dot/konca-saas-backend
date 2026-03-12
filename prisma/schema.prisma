@@ -36,6 +36,8 @@ model User {
   fullAddress      String?
   city             String?
   district         String?
+
+  googleMapsUrl    String?
   
   // Sosyal Medya
   instagram        String?

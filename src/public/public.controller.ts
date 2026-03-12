@@ -45,8 +45,12 @@ export class PublicController {
     return this.publicService.getGallery(Number(userId));
   }
 
+  // 👇 YENİ: Google Haritalar Yorumlarını Çeken Endpoint
   @Get('reviews/:userId')
-  getReviews() { return []; } 
+  async getReviews(@Param('userId') userId: string) {
+    // Boş dizi yerine artık PublicService'teki zeki motoru çağırıyoruz!
+    return this.publicService.getGoogleReviews(Number(userId));
+  }
 
   // 👇 YENİ: Dolu Randevuları Çeken Endpoint
   // Örnek: /public/appointments/1?date=2026-01-14

@@ -48,7 +48,7 @@ export class PublicService {
 
     if (!user || !user.isActive) throw new BadRequestException('Bu dükkan şu anda hizmet vermemektedir.');
     
-    // 🚀 Hash (şifre) hariç tüm verileri (Logo dahil) gönderir
+    // 🚀 Hash (şifre) hariç tüm verileri (Logo ve googleMapsUrl dahil) gönderir
     const { hash, ...shopData } = user;
     return shopData;
   }
@@ -98,6 +98,72 @@ export class PublicService {
       where: { userId: userId },
       orderBy: { createdAt: 'desc' }
     });
+  }
+
+  // 🧠 SAAS HACK: Fatura şişmesin diye yorumları RAM'de tutan önbellek (Cache)
+  private reviewCache = new Map<number, { data: any, timestamp: number }>();
+
+  // 🚀 GOOGLE HARİTALAR YORUM ÇEKİCİ MOTOR
+  async getGoogleReviews(userId: number) {
+    try {
+      // 1. ÖNBELLEK KONTROLÜ: Bu dükkanın yorumları son 24 saat içinde çekilmiş mi?
+      const cached = this.reviewCache.get(userId);
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000; // 24 Saat
+      
+      if (cached && (Date.now() - cached.timestamp < TWENTY_FOUR_HOURS)) {
+        return cached.data; // Varsa Google'a gitme, direkt hafızadan bedavaya ver!
+      }
+
+      // 2. Dükkanı Bul
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user || !user.googleMapsUrl) return null; // Harita linki yoksa bir şey döndürme
+
+      const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+      if (!apiKey) {
+        console.warn(`[Dükkan ${userId}] 🚨 GOOGLE_PLACES_API_KEY eksik! Lütfen .env dosyanıza ekleyin.`);
+        return null;
+      }
+
+      // 3. GOOGLE API ADIM 1: Dükkanın "Place ID"sini (Kimliğini) Bul
+      // (Müşterinin girdiği isim ve ilçeden harita profilini %99 doğrulukla bulur)
+      const searchQuery = encodeURIComponent(`${user.shopName} ${user.district} ${user.city}`);
+      const findPlaceUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${searchQuery}&inputtype=textquery&fields=place_id&key=${apiKey}`;
+      
+      const placeRes = await fetch(findPlaceUrl);
+      const placeData = await placeRes.json();
+      
+      if (!placeData.candidates || placeData.candidates.length === 0) return null;
+      const placeId = placeData.candidates[0].place_id;
+
+      // 4. GOOGLE API ADIM 2: Yorumları ve Yıldız Ortalamasını Çek
+      const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,reviews&language=tr&key=${apiKey}`;
+      const detailsRes = await fetch(detailsUrl);
+      const detailsData = await detailsRes.json();
+
+      const result = {
+        rating: detailsData.result?.rating || 5.0,
+        totalReviews: detailsData.result?.user_ratings_total || 0,
+        // Sadece 5 ve 4 yıldızlı en iyi 5 yorumu filtrele
+        reviews: (detailsData.result?.reviews || [])
+            .filter((r: any) => r.rating >= 4) 
+            .slice(0, 5)
+            .map((r: any) => ({
+                author_name: r.author_name,
+                profile_photo_url: r.profile_photo_url,
+                rating: r.rating,
+                text: r.text,
+                time: r.relative_time_description
+            }))
+      };
+
+      // 5. CACHE'E (Hafızaya) KAYDET: 24 saat boyunca bir daha Google'a istek atma!
+      this.reviewCache.set(userId, { data: result, timestamp: Date.now() });
+
+      return result;
+    } catch (error) {
+      console.error(`[Dükkan ${userId}] Google Yorumları Çekilirken Hata:`, error);
+      return null;
+    }
   }
 
   // --- Tarih Dönüştürücü ---
