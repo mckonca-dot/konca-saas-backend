@@ -18,7 +18,7 @@ export class UserService {
     return result;
   }
 
-  // Kullanıcı Güncelleme (Logo ve Kapak Fotoğrafı Desteği Eklendi)
+  // Kullanıcı Güncelleme (Logo, Kapak ve Google Haritalar Desteği Eklendi)
   async updateUser(userId: number, data: any) {
     const updateData: any = {};
 
@@ -39,7 +39,7 @@ export class UserService {
     if (data.city !== undefined) updateData.city = data.city;
     if (data.district !== undefined) updateData.district = data.district;
 
-    // 🚀🚀 KURUMSAL GÖRSELLER (YENİ!) 🚀🚀
+    // 🚀🚀 KURUMSAL GÖRSELLER 🚀🚀
     if (data.logo !== undefined) updateData.logo = data.logo;
     if (data.coverImage !== undefined) updateData.coverImage = data.coverImage;
 
@@ -49,6 +49,9 @@ export class UserService {
     if (data.instagram !== undefined) updateData.instagram = data.instagram;
     if (data.facebook !== undefined) updateData.facebook = data.facebook;
     if (data.twitter !== undefined) updateData.twitter = data.twitter;
+    
+    // 🌟 YENİ: GOOGLE HARİTALAR LİNKİ KAYIT MOTORU 🌟
+    if (data.googleMapsUrl !== undefined) updateData.googleMapsUrl = data.googleMapsUrl;
 
     return this.prisma.user.update({
       where: { id: userId },
