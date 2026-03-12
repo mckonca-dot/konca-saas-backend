@@ -57,9 +57,9 @@ export class AppointmentService {
     });
   }
 
-  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VERSİYON) ---
+  // --- 2. Randevu Oluştur (OTOMATİK ONAYLI VE HİBRİT VERSİYON) ---
   async createAppointment(userId: number, data: any) {
-    const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote } = data;
+    const { customerId, serviceId, dateTime, staffId, customerName, customerPhone, customerNote, isManual } = data;
 
     const appointmentDate = this.parseDateStrict(dateTime);
     if (isNaN(appointmentDate.getTime())) throw new BadRequestException('Tarih formatı anlaşılamadı!');
@@ -68,10 +68,45 @@ export class AppointmentService {
     const service = await this.prisma.service.findUnique({ where: { id: Number(serviceId) } });
     if (!service) throw new BadRequestException('Hizmet bulunamadı.');
 
+    // 🚀 ÇAKIŞMA KONTROLÜ (Aynı saate başka randevu var mı?)
+    const appointmentEnd = new Date(appointmentDate.getTime() + service.duration * 60000);
+    const startOfDay = new Date(appointmentDate); startOfDay.setHours(0,0,0,0);
+    const endOfDay = new Date(appointmentDate); endOfDay.setHours(23,59,59,999);
+
+    const existingAppointments = await this.prisma.appointment.findMany({
+        where: {
+            userId: userId || 1,
+            dateTime: { gte: startOfDay, lte: endOfDay },
+            ...(staffId ? { staffId: Number(staffId) } : {}),
+            status: { not: 'CANCELLED' }
+        },
+        include: { service: true }
+    });
+
+    for (const apt of existingAppointments) {
+        const aptStart = new Date(apt.dateTime);
+        const aptEnd = new Date(aptStart.getTime() + apt.service.duration * 60000);
+        // Eğer yeni randevu mevcut bir randevunun içine düşüyorsa engelle!
+        if (aptStart < appointmentEnd && aptEnd > appointmentDate) {
+            throw new BadRequestException('⚠️ Seçilen saat aralığı şu anda dolu. Lütfen başka bir saat seçin.');
+        }
+    }
+
     let customer: any = null;
     if (customerId) {
        customer = await this.prisma.customer.findUnique({ where: { id: Number(customerId) } });
     }
+    
+    // Eğer veritabanında müşteri yoksa (Manuel girişteki gibi), önce müşteriyi yarat!
+    if (!customer && customerName && customerPhone) {
+        customer = await this.prisma.customer.findFirst({ where: { phone: customerPhone, userId: userId || 1 } });
+        if (!customer) {
+            customer = await this.prisma.customer.create({
+                data: { name: customerName, phone: customerPhone, userId: userId || 1 }
+            });
+        }
+    }
+
     const cName = customer?.name || customerName || "Müşteri";
     const cPhone = customer?.phone || customerPhone || "";
 
@@ -88,7 +123,7 @@ export class AppointmentService {
         dateTime: appointmentDate,
         status: 'CONFIRMED', 
         note: customerNote || "",
-        ...(customerId && { customer: { connect: { id: Number(customerId) } } }),
+        ...(customer?.id ? { customer: { connect: { id: customer.id } } } : {}),
         service: { connect: { id: Number(serviceId) } },
         user: { connect: { id: userId || 1 } },
         ...(staffId && { staff: { connect: { id: Number(staffId) } } })
@@ -99,17 +134,19 @@ export class AppointmentService {
     const dateOnlyStr = appointmentDate.toLocaleDateString('tr-TR', { timeZone: 'Europe/Istanbul', day: 'numeric', month: 'long' });
     const timeOnlyStr = appointmentDate.toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit' });
 
-    // 📱 PERSONEL/PATRON BİLDİRİMİ (Bunu sabit bıraktık ki dükkan içi bilgi net olsun)
-    const patronMesaj = `🔔 *YENİ RANDEVU EKLENDİ*\n\n📞 *Müşteri:* ${cName}\n✂️ *Hizmet:* ${service.name}\n🗓 *Tarih:* ${dateOnlyStr} - ${timeOnlyStr}\n` +
-      (staff ? `👤 *Personel:* ${staff.name}\n` : ``) +
-      (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
-      `Sistem tarafından takvime eklendi.`;
+    // 📱 PERSONEL/PATRON BİLDİRİMİ (Sadece müşteri kendi siteden aldıysa gitsin, kuaför kendi eklediyse darlama)
+    if (!isManual) {
+        const patronMesaj = `🔔 *YENİ RANDEVU EKLENDİ*\n\n📞 *Müşteri:* ${cName}\n✂️ *Hizmet:* ${service.name}\n🗓 *Tarih:* ${dateOnlyStr} - ${timeOnlyStr}\n` +
+          (staff ? `👤 *Personel:* ${staff.name}\n` : ``) +
+          (customerNote ? `📝 *Not:* ${customerNote}\n\n` : `\n`) +
+          `Sistem tarafından takvime eklendi.`;
 
-    const targetPhone = staff?.phone ? staff.phone : '905319485682'; 
-    await this.notifier.sendMessage(userId, targetPhone, patronMesaj); 
+        const targetPhone = staff?.phone ? staff.phone : '905319485682'; 
+        await this.notifier.sendMessage(userId, targetPhone, patronMesaj); 
+    }
 
-    // 📱 MÜŞTERİ BİLDİRİMİ (DİNAMİK ŞABLON)
-    if (cPhone) {
+    // 📱 MÜŞTERİ BİLDİRİMİ (Hem manuel hem otomatik randevularda müşteriye onay gitsin)
+    if (cPhone && cPhone.length > 9) { // Basit bir telefon numarası kontrolü
       const rawTemplate = user?.msgTemplateOnay || "Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz onaylanmıştır. ✂️\n\n📍 [DUKKAN_ADI]";
       
       const musteriMesaj = this.formatTemplate(rawTemplate, {
