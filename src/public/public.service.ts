@@ -20,7 +20,7 @@ export class PublicService {
         city: true,       
         district: true,   
         coverImage: true,
-        logo: true, // 🚀 LOGO BURADA: Ana sayfadaki kartlarda görünmesini sağlar
+        logo: true, 
         isPromoted: true, 
         isActive: true,   
         services: {
@@ -30,7 +30,20 @@ export class PublicService {
       },
     });
     
-    return shops;
+    // 🚀 YENİ: Ana sayfaya giden her dükkanın içine Google Puanını da ekle!
+    const shopsWithRatings = await Promise.all(shops.map(async (shop) => {
+        // Cache'den (veya Google'dan) dükkanın puanını çekiyoruz
+        const reviewData = await this.getGoogleReviews(shop.id);
+        
+        return {
+            ...shop,
+            // Google linki yoksa veya hata varsa varsayılan 5.0 göster
+            rating: reviewData?.rating || "5.0", 
+            reviewCount: reviewData?.totalReviews || 0
+        };
+    }));
+    
+    return shopsWithRatings;
   }
 
   // --- Dükkan Detay Bilgilerini Getir ---
