@@ -8,19 +8,18 @@ async function bootstrap() {
   // 🛡️ 1. HELMET: Görünmez HTTP kalkanı. XSS ve Veri Koklama saldırılarını engeller.
   app.use(helmet());
 
-  // 🛡️ 2. CORS (Sınır Muhafızı): Yeni VIP domainlerimiz listeye eklendi!
+  // 🛡️ CORS Ayarları
   app.enableCors({
     origin: [
-      'http://localhost:3000',       // Yerel Frontend testi
-      'http://localhost:8081',       // Yerel Mobil (Expo) testi
-      'https://planincom.tr',        // 🚀 YENİ VIP DOMAIN (Ana)
-      'https://www.planincom.tr',    // 🚀 YENİ VIP DOMAIN (WWW'li hali)
-      /\.vercel\.app$/               // Eski Vercel linkleri (Ne olur ne olmaz kalsın)
+      'https://planin.com.tr',        // Ana domain
+      'https://www.planin.com.tr',    // www'li domain (Hata buradan geliyor!)
+      'https://planin-frontend.vercel.app', // Vercel adresi (e-posta onayları için lazım olabilir)
+      'http://localhost:3000',        // Yerel test
+      'http://localhost:8081',        // Mobil test
     ],
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS', // OPTIONS eklendi (Tarayıcı ön uçuşları için şarttır)
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
-
   // 🚨 NOT: Agresif ValidationPipe kalkanını kaldırdık çünkü esnek veri (any) yapımızı blokluyordu.
   // Sitemiz Prisma ORM kullandığı için SQL Injection saldırılarına karşı zaten doğal olarak %100 korumalıdır!
 
