@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -23,15 +23,18 @@ model User {
   firstName        String?
   lastName         String?
   
-  // Dükkan Bilgileri
+  // 🏢 Dükkan Bilgileri
   shopName         String?
+  // 🎯 SEO KRİTİK: Dükkanın URL ismi (örn: ahmet-kuafor-duzce)
+  slug             String?   @unique 
   phone            String?
   tagline          String?
   description      String?
   logo             String?
   coverImage       String?
   
-  // Adres Bilgileri
+
+  // 📍 Adres Bilgileri
   address          String?
   addressTitle     String?
   fullAddress      String?
@@ -40,12 +43,12 @@ model User {
 
   googleMapsUrl    String?
   
-  // Sosyal Medya
+  // 📱 Sosyal Medya
   instagram        String?
   facebook         String?
   twitter          String?
 
-  // Çalışma Saatleri
+  // ⏰ Çalışma Saatleri
   workStart        String?   @default("09:00")
   workEnd          String?   @default("18:00")
   
@@ -56,12 +59,12 @@ model User {
   isVerified       Boolean   @default(false) 
   verificationCode String?   
   
-  // Mağaza Durumu 
+  // ⚙️ Mağaza Durumu 
   isActive         Boolean   @default(true)
   isPromoted       Boolean   @default(false)
   isAdmin          Boolean   @default(false)
 
-  // İlişkiler (Eski kodlarına uyumlu hale getirildi)
+  // 🔗 İlişkiler
   services         Service[]
   staff            Staff[]
   appointments     Appointment[]
@@ -82,18 +85,20 @@ model User {
   resetCode         String?
   resetCodeExpires  DateTime?
 
+  // 🚀 SEO İndeksi: Slug üzerinden aramaları hızlandırır
+  @@index([slug])
   @@map("users")
 }
 
 model Service {
-  id          Int      @id @default(autoincrement())
-  name        String
-  duration    Int
-  price       Float
-  isActive    Boolean  @default(true)
+  id           Int      @id @default(autoincrement())
+  name         String
+  duration     Int
+  price        Float
+  isActive     Boolean  @default(true)
   
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   appointments Appointment[]
 
@@ -101,14 +106,14 @@ model Service {
 }
 
 model Staff {
-  id          Int      @id @default(autoincrement())
-  name        String
-  phone       String?
-  email       String?
-  imageUrl    String?
+  id           Int      @id @default(autoincrement())
+  name         String
+  phone        String?
+  email        String?
+  imageUrl     String?
   
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   appointments Appointment[]
   staffLeaves  StaffLeave[]
@@ -117,14 +122,13 @@ model Staff {
 }
 
 model Customer {
-  id          Int      @id @default(autoincrement())
-  name        String
-  phone       String
-  notes       String?
+  id           Int      @id @default(autoincrement())
+  name         String
+  phone        String
+  notes        String?
   
-  // Eski kodundaki userId eklendi
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   appointments Appointment[]
 
@@ -132,26 +136,26 @@ model Customer {
 }
 
 model Appointment {
-  id             Int      @id @default(autoincrement())
-  dateTime       DateTime
-  status         String   @default("PENDING") 
-  cancelReason   String?
-  isReminderSent Boolean  @default(false) // Eksik olan hatırlatıcı eklendi
+  id              Int      @id @default(autoincrement())
+  dateTime        DateTime
+  status          String   @default("PENDING") 
+  cancelReason    String?
+  isReminderSent  Boolean  @default(false)
 
-  userId         Int
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  serviceId      Int
-  service        Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  serviceId       Int
+  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
-  staffId        Int?
-  staff          Staff?   @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  staffId         Int?
+  staff           Staff?   @relation(fields: [staffId], references: [id], onDelete: SetNull)
 
-  customerId     Int
-  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId      Int
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("appointments")
 }
@@ -160,7 +164,7 @@ model Review {
   id           Int      @id @default(autoincrement())
   rating       Int
   comment      String?
-  customerName String? // Eksik olan alan eklendi
+  customerName String? 
   
   userId       Int
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)

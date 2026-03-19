@@ -5,19 +5,35 @@ import { PublicService } from './public.service';
 export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
-  // 👇 YENİ: Ana sayfa vitrini için tüm dükkanları getiren endpoint
-  // 🚀 GÜVENLİK: Backend seviyesinde de "Cache (Önbellek)" tamamen kapatıldı!
+  // 🌍 TÜM DÜKKANLAR (VİTRİN)
   @Get('shops')
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
   getAllShops() {
     return this.publicService.getAllPublicShops();
   }
 
+  // 🗺️ SEO İÇİN: TÜM DÜKKAN SLUGLARINI GETİR (Sitemap için)
+  // Bu endpoint frontend'deki sitemap.ts tarafından kullanılacak
+  @Get('shops/all-slugs')
+  getAllShopSlugs() {
+    return this.publicService.getAllShopSlugs();
+  }
+
+  // 🚀 SEO İÇİN ASIL BOMBA: SLUG İLE DÜKKAN GETİR
+  // Örnek: /public/shop/by-slug/ahmet-kuafor-duzce
+  @Get('shop/by-slug/:slug')
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  getShopBySlug(@Param('slug') slug: string) {
+    return this.publicService.getShopBySlug(slug);
+  }
+
+  // MEVCUT ID BAZLI GETİRME (Eski linkler bozulmasın diye kalsın)
   @Get('shop/:userId')
   getShop(@Param('userId') userId: string) {
     return this.publicService.getShopData(Number(userId));
   }
 
+  // HİZMETLER (Slug desteği eklenebilir veya ID üzerinden devam edebilir)
   @Get('services/:userId')
   async getServices(@Param('userId') userId: string) {
     const data = await this.publicService.getShopData(Number(userId)) as any;
@@ -45,15 +61,11 @@ export class PublicController {
     return this.publicService.getGallery(Number(userId));
   }
 
-  // 👇 YENİ: Google Haritalar Yorumlarını Çeken Endpoint
   @Get('reviews/:userId')
   async getReviews(@Param('userId') userId: string) {
-    // Boş dizi yerine artık PublicService'teki zeki motoru çağırıyoruz!
     return this.publicService.getGoogleReviews(Number(userId));
   }
 
-  // 👇 YENİ: Dolu Randevuları Çeken Endpoint
-  // Örnek: /public/appointments/1?date=2026-01-14
   @Get('appointments/:userId')
   getAppointments(
     @Param('userId') userId: string,
@@ -62,8 +74,23 @@ export class PublicController {
     return this.publicService.getAppointmentsByDate(Number(userId), date);
   }
 
+  @Get('shops/:city/:district?')
+  getShopsByLocation(
+    @Param('city') city: string,
+    @Param('district') district?: string
+  ) {
+    return this.publicService.getShopsByLocation(city, district);
+  }
+
+  // Bunu Controller sınıfının içine uygun bir yere (örneğin getReviews'un altına) yapıştır:
+  @Get('blog/:slug')
+  getBlogPost(@Param('slug') slug: string) {
+    return this.publicService.getBlogPost(slug);
+  }
+
   @Post('appointments')
   bookAppointment(@Body() body: any) {
+    // shopId hala veritabanı ID'si olmalı
     return this.publicService.createPublicAppointment(Number(body.shopId), body);
   }
 }
