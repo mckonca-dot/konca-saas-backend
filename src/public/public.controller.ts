@@ -74,10 +74,11 @@ export class PublicController {
     return this.publicService.getAppointmentsByDate(Number(userId), date);
   }
 
-  @Get('shops/:city/:district?')
+  @Get('shops/:city') // Sadece şehir gelirse
+  @Get('shops/:city/:district') // Şehir ve ilçe gelirse
   getShopsByLocation(
     @Param('city') city: string,
-    @Param('district') district?: string
+    @Param('district') district?: string // Soru işareti burada kalabilir (kod içinde opsiyonel olması için)
   ) {
     return this.publicService.getShopsByLocation(city, district);
   }
