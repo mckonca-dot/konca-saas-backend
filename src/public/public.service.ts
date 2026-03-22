@@ -38,17 +38,22 @@ export class PublicService {
     }));
   }
 
-  // 🎯 SEO: Slug ile dükkan getir
+  // 🎯 SEO: Slug ile dükkan getir (GÜNCELLENDİ: Daha güvenli)
   async getShopBySlug(slug: string) {
+    if (!slug) throw new BadRequestException('Geçersiz dükkan adresi.');
+
     const user = await this.prisma.user.findUnique({
-      where: { slug },
+      where: { slug: slug },
       include: { 
         services: { where: { isActive: true }, orderBy: { price: 'asc' } }, 
         staff: true,
       },
     });
 
-    if (!user || !user.isActive) throw new NotFoundException('Dükkan bulunamadı.');
+    if (!user || !user.isActive) {
+      throw new NotFoundException('Dükkan bulunamadı veya hizmet vermiyor.');
+    }
+    
     const { hash, ...shopData } = user;
     return shopData;
   }
@@ -56,13 +61,15 @@ export class PublicService {
   // 🗺️ SEO: Sitemap için tüm slugları getir
   async getAllShopSlugs() {
     return this.prisma.user.findMany({
-      where: { isAdmin: false, isActive: true },
+      where: { isAdmin: false, isActive: true, slug: { not: null } }, // Boş slugları getirme
       select: { slug: true, city: true, district: true }
     });
   }
 
   // --- Mevcut Fonksiyonlar (ID Bazlı) ---
   async getShopData(userId: number) {
+    if (!userId || isNaN(userId)) throw new BadRequestException('Geçersiz dükkan numarası.');
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { 
@@ -70,7 +77,9 @@ export class PublicService {
         staff: true,
       },
     });
-    if (!user || !user.isActive) throw new BadRequestException('Dükkan aktif değil.');
+    
+    if (!user || !user.isActive) throw new NotFoundException('Dükkan bulunamadı veya hizmet vermiyor.');
+    
     const { hash, ...shopData } = user;
     return shopData;
   }
@@ -137,10 +146,6 @@ export class PublicService {
 
   // --- ✍️ SEO İÇİN BLOG GETİRME MOTORU ---
   async getBlogPost(slug: string) {
-    // 💡 NOT: Veritabanında (Prisma) henüz bir "Blog" tablosu olmadığı için
-    // frontend patlamasın diye SEO uyumlu örnek bir içerik dönüyoruz.
-    // İleride Prisma'ya `model BlogPost` eklediğinde burayı `this.prisma.blogPost.findUnique` ile değiştireceğiz.
-    
     if (!slug) throw new NotFoundException('Blog yazısı bulunamadı.');
 
     const dummyTitle = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -163,7 +168,7 @@ export class PublicService {
 
         <p>En iyi sonucu almak için bu alanda profesyonel hizmet veren bir salon seçmeniz son derece önemlidir. Bölgenizdeki uzmanları incelemeyi unutmayın.</p>
       `,
-      coverImage: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1200&auto=format&fit=crop', // Şık bir kuaför fotoğrafı
+      coverImage: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1200&auto=format&fit=crop',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };

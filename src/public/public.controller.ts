@@ -13,27 +13,29 @@ export class PublicController {
   }
 
   // 🗺️ SEO İÇİN: TÜM DÜKKAN SLUGLARINI GETİR (Sitemap için)
-  // Bu endpoint frontend'deki sitemap.ts tarafından kullanılacak
   @Get('shops/all-slugs')
   getAllShopSlugs() {
     return this.publicService.getAllShopSlugs();
   }
 
-  // 🚀 SEO İÇİN ASIL BOMBA: SLUG İLE DÜKKAN GETİR
-  // Örnek: /public/shop/by-slug/ahmet-kuafor-duzce
-  @Get('shop/by-slug/:slug')
+  // 🚀 SEO İÇİN ASIL BOMBA: SLUG VEYA ID İLE DÜKKAN GETİR
+  // Frontend artık /public/shop/ahmet-kuafor şeklinde istek atıyor
+  @Get('shop/:identifier')
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
-  getShopBySlug(@Param('slug') slug: string) {
-    return this.publicService.getShopBySlug(slug);
+  async getShop(@Param('identifier') identifier: string) {
+    // 🧠 ZEKİ KONTROL: Eğer gelen parametre sadece rakamlardan oluşuyorsa ID'dir, yoksa SLUG'dır.
+    const isId = /^\d+$/.test(identifier);
+
+    if (isId) {
+      // Eskisi gibi ID ile arama
+      return this.publicService.getShopData(Number(identifier));
+    } else {
+      // Yeni nesil SLUG ile arama
+      return this.publicService.getShopBySlug(identifier);
+    }
   }
 
-  // MEVCUT ID BAZLI GETİRME (Eski linkler bozulmasın diye kalsın)
-  @Get('shop/:userId')
-  getShop(@Param('userId') userId: string) {
-    return this.publicService.getShopData(Number(userId));
-  }
-
-  // HİZMETLER (Slug desteği eklenebilir veya ID üzerinden devam edebilir)
+  // HİZMETLER 
   @Get('services/:userId')
   async getServices(@Param('userId') userId: string) {
     const data = await this.publicService.getShopData(Number(userId)) as any;
@@ -74,21 +76,23 @@ export class PublicController {
     return this.publicService.getAppointmentsByDate(Number(userId), date);
   }
 
-  @Get('shops/:city') // Sadece şehir gelirse
-  @Get('shops/:city/:district') // Şehir ve ilçe gelirse
+  // ŞEHİR VE İLÇE FİLTRESİ
+  @Get('shops/:city') 
+  @Get('shops/:city/:district') 
   getShopsByLocation(
     @Param('city') city: string,
-    @Param('district') district?: string // Soru işareti burada kalabilir (kod içinde opsiyonel olması için)
+    @Param('district') district?: string 
   ) {
     return this.publicService.getShopsByLocation(city, district);
   }
 
-  // Bunu Controller sınıfının içine uygun bir yere (örneğin getReviews'un altına) yapıştır:
+  // BLOG
   @Get('blog/:slug')
   getBlogPost(@Param('slug') slug: string) {
     return this.publicService.getBlogPost(slug);
   }
 
+  // RANDEVU OLUŞTURMA
   @Post('appointments')
   bookAppointment(@Body() body: any) {
     // shopId hala veritabanı ID'si olmalı
