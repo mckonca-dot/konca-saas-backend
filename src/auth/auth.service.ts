@@ -24,12 +24,60 @@ export class AuthService {
     });
   }
 
+  // 🚀 SİHİRLİ FONKSİYON: Türkçe Karakterleri ve Boşlukları Temizler
+  private generateSlug(text: string): string {
+    if (!text) return 'isimsiz-kuafor-' + Math.floor(Math.random() * 1000);
+    
+    const trMap: { [key: string]: string } = {
+        'ç': 'c', 'ğ': 'g', 'ş': 's', 'ü': 'u', 'ı': 'i', 'ö': 'o',
+        'Ç': 'c', 'Ğ': 'g', 'Ş': 's', 'Ü': 'u', 'İ': 'i', 'Ö': 'o'
+    };
+    
+    let slug = text.toLowerCase();
+    
+    // Türkçe karakterleri değiştir
+    slug = slug.replace(/[çğşüıöÇĞŞÜİÖ]/g, match => trMap[match] || match);
+    
+    // Alfasayısal olmayanları sil, boşlukları tire yap, baştaki sondaki tireleri sil
+    slug = slug
+        .replace(/[^a-z0-9\s-]/g, '') // Özel karakterleri sil
+        .trim()
+        .replace(/\s+/g, '-') // Boşlukları tire yap
+        .replace(/-+/g, '-'); // Yan yana çok tire varsa tek yap
+
+    return slug;
+  }
+
+  // 🚀 GÜVENLİK KALKANI: Eğer bu slug daha önce alınmışsa sonuna rastgele kod ekler
+  private async getUniqueSlug(baseSlug: string): Promise<string> {
+    let slug = baseSlug;
+    let isUnique = false;
+    let counter = 1;
+
+    while (!isUnique) {
+      const existingUser = await this.prisma.user.findUnique({ where: { slug } });
+      if (!existingUser) {
+        isUnique = true;
+      } else {
+        // Eğer slug doluysa sonuna rastgele 4 karakter ekle
+        const randomString = Math.random().toString(36).substring(2, 6);
+        slug = `${baseSlug}-${randomString}`;
+        counter++;
+      }
+    }
+    return slug;
+  }
+
   async signup(dto: any) { 
     const hash = await argon.hash(dto.password);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     const trialEnd = new Date();
     trialEnd.setDate(trialEnd.getDate() + 30);
+
+    // 🎯 BURADA SİHİR BAŞLIYOR: Gelen dükkan isminden SEO dostu eşsiz bir slug üretiyoruz
+    const baseSlug = this.generateSlug(dto.shopName);
+    const uniqueSlug = await this.getUniqueSlug(baseSlug);
 
     try {
       // 1. Önce kullanıcıyı veritabanına kaydet
@@ -38,6 +86,7 @@ export class AuthService {
           email: dto.email,
           hash,
           shopName: dto.shopName,
+          slug: uniqueSlug, // 🎯 ÜRETTİĞİMİZ SLUG'I VERİTABANINA KAYDEDİYORUZ
           plan: dto.plan || 'TRIAL',
           trialEndsAt: trialEnd,
           verificationCode: otp,
@@ -48,9 +97,9 @@ export class AuthService {
       // 2. Mail Göndermeyi Dene
       try {
         await this.transporter.sendMail({
-          from: `"Konca SaaS" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER}>`,
+          from: `"Planın" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER}>`,
           to: user.email,
-          subject: 'Konca SaaS - E-Posta Doğrulama Kodu',
+          subject: 'Planın - E-Posta Doğrulama Kodu',
           html: `
             <div style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #171717; color: #fff; border-radius: 15px;">
               <h2 style="color: #f59e0b;">Aramıza Hoş Geldiniz! 🚀</h2>
@@ -140,7 +189,7 @@ export class AuthService {
     try {
       // Mevcut transporter ile mail gönderimi
       await this.transporter.sendMail({
-        from: `"Konca SaaS" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER}>`,
+        from: `"Planın" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER}>`,
         to: email,
         subject: '🔒 Şifre Sıfırlama Kodunuz',
         html: `
