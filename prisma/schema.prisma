@@ -89,7 +89,7 @@ model Service {
 
 model Appointment {
   id            Int      @id @default(autoincrement())
-  // 🎯 KRİTİK: public.service.ts:238 hatasını çözmek için bu 4 alan opsiyonel yapıldı (?)
+  // Bu alanlar kodunla uyum için opsiyonel kalmalı
   customerName  String?
   customerPhone String?
   date          DateTime?
@@ -106,9 +106,9 @@ model Appointment {
   serviceId     Int
   service       Service  @relation(fields: [serviceId], references: [id])
 
-  customerId    Int?
-  // 🎯 KRİTİK: reminder.service.ts:57 hatasını (possibly null) çözmek için '?' kaldırıldı
-  customer      Customer @relation(fields: [customerId], references: [id])
+  // 🎯 BURASI KRİTİK: İkisi de opsiyonel ( ? ) olmalı
+  customerId    Int?     
+  customer      Customer? @relation(fields: [customerId], references: [id])
 
   staffId       Int?
   staff         Staff?   @relation(fields: [staffId], references: [id])
