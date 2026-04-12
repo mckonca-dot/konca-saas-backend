@@ -20,9 +20,8 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
-  },
-  "compilerOptions": {
+    "noFallthroughCasesInSwitch": false,
+    "ignoreDeprecations": "6.0", 
     "types": ["node"]
   }
 }

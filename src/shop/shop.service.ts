@@ -13,6 +13,7 @@ export class ShopService {
       where: { id: userId },
       select: {
         shopName: true,
+        category: true, // 🎯 YENİ: Kategori bilgisi çekiliyor
         slug: true, // 🎯 SEO için eklendi
         phone: true,
         tagline: true,
@@ -55,6 +56,7 @@ export class ShopService {
       }
     }
 
+    // Gelen data'da category varsa Prisma onu da günceller.
     return this.prisma.user.update({
       where: { id: userId },
       data: {

@@ -1,14 +1,25 @@
-import { IsEmail, IsNotEmpty, IsString, IsOptional } from 'class-validator';
+// src/auth/dto/auth.dto.ts
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class AuthDto {
   @IsEmail()
-  email: string;
+  @IsNotEmpty()
+  email!: string; // 🎯 '!' ekledik
 
   @IsString()
   @IsNotEmpty()
-  password: string;
+  @MinLength(6)
+  password!: string; // 🎯 '!' ekledik
 
   @IsString()
-  @IsOptional()
-  shopName?: string;
+  @IsNotEmpty()
+  fullName!: string; // 🎯 '!' ekledik
+
+  @IsString()
+  @IsNotEmpty()
+  shopName!: string; // 🎯 '!' ekledik
+
+  @IsString()
+  @IsNotEmpty()
+  category!: string; // 🎯 '!' ekledik
 }

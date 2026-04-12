@@ -59,7 +59,6 @@ export class AuthService {
       if (!existingUser) {
         isUnique = true;
       } else {
-        // Eğer slug doluysa sonuna rastgele 4 karakter ekle
         const randomString = Math.random().toString(36).substring(2, 6);
         slug = `${baseSlug}-${randomString}`;
         counter++;
@@ -68,44 +67,43 @@ export class AuthService {
     return slug;
   }
 
+  // auth.service.ts içindeki signup fonksiyonunu bu blokla değiştir:
+
   async signup(dto: any) { 
-    const hash = await argon.hash(dto.password);
+    const hash = await argon.hash(dto.password); // Şifreyi hash'ledik
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const trialEnd = new Date();
-    trialEnd.setDate(trialEnd.getDate() + 30);
-
-    // 🎯 BURADA SİHİR BAŞLIYOR: Gelen dükkan isminden SEO dostu eşsiz bir slug üretiyoruz
     const baseSlug = this.generateSlug(dto.shopName);
     const uniqueSlug = await this.getUniqueSlug(baseSlug);
 
     try {
-      // 1. Önce kullanıcıyı veritabanına kaydet
+      // auth.service.ts içindeki signup kısmı
+
       const user = await this.prisma.user.create({
         data: {
           email: dto.email,
-          hash,
+          hash: hash, // argon2 ile oluşturduğun şifreli değişken
+          fullName: dto.fullName, // 🎯 DTO'dan gelen veriyi buraya bağla
           shopName: dto.shopName,
-          slug: uniqueSlug, // 🎯 ÜRETTİĞİMİZ SLUG'I VERİTABANINA KAYDEDİYORUZ
-          plan: dto.plan || 'TRIAL',
-          trialEndsAt: trialEnd,
+          category: dto.category, // 🎯 DTO'dan gelen kategoriyi buraya bağla
+          slug: uniqueSlug,
           verificationCode: otp,
           isVerified: false, 
         },
       });
 
-      // 2. Mail Göndermeyi Dene
+      // 2. Mail Gönderimi (Şampanya renkli şablonunla devam...)
       try {
         await this.transporter.sendMail({
           from: `"Planın" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER}>`,
           to: user.email,
           subject: 'Planın - E-Posta Doğrulama Kodu',
           html: `
-            <div style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #171717; color: #fff; border-radius: 15px;">
-              <h2 style="color: #f59e0b;">Aramıza Hoş Geldiniz! 🚀</h2>
+            <div style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #1A1A1D; color: #F8F1E7; border-radius: 15px;">
+              <h2 style="color: #E8C9B5;">Aramıza Hoş Geldiniz! 🚀</h2>
               <p style="font-size: 16px; color: #d1d5db;">Hesabınızı aktifleştirmek için doğrulama kodunuz:</p>
-              <div style="margin: 30px auto; padding: 15px; background-color: #0a0a0a; border: 2px dashed #f59e0b; width: fit-content; border-radius: 10px;">
-                <h1 style="color: #f59e0b; font-size: 48px; letter-spacing: 10px; margin: 0;">${otp}</h1>
+              <div style="margin: 30px auto; padding: 15px; background-color: #1F1F23; border: 2px dashed #E8C9B5; width: fit-content; border-radius: 10px;">
+                <h1 style="color: #E8C9B5; font-size: 48px; letter-spacing: 10px; margin: 0;">${otp}</h1>
               </div>
             </div>
           `,
@@ -113,19 +111,22 @@ export class AuthService {
 
         return { message: 'Doğrulama kodu gönderildi', email: user.email };
       } catch (mailError) {
-        // 🚀 MAİL GÖNDERİLEMEZSE KULLANICIYI GERİ SİL! (ASKIDA KALMASIN)
         console.error("Mail Hatası:", mailError);
-        await this.prisma.user.delete({ where: { id: user.id } });
-        throw new ForbiddenException('Mail gönderilemedi. Render ayarlarınızı kontrol edin.');
+        await this.prisma.user.delete({ where: { id: user.id } }); // Hata olursa kullanıcıyı sil
+        throw new ForbiddenException('Mail gönderilemedi.');
       }
 
-    } catch (error) {
+    // auth.service.ts - Satır 120 civarı
+    } catch (error: any) { // 🎯 Sır burada: ': any' ekleyerek "ben ne yaptığımı biliyorum" diyorsun.
       if (error.code === 'P2002') {
         throw new ForbiddenException('Bu e-posta zaten kullanımda');
       }
       throw error;
     }
   }
+
+  // ... Diğer fonksiyonlar (verifyEmail, signin, signToken, forgotPassword, resetPassword) 
+  // Gönderdiğin dosyadakiyle aynı kalabilir, herhangi bir kategori değişikliği gerektirmiyorlar.
 
   async verifyEmail(dto: any) {
     const user = await this.prisma.user.findUnique({
@@ -167,47 +168,41 @@ export class AuthService {
     return { access_token: token };
   }
 
-  // =========================================================================
-  // 🚀 ŞİFREMİ UNUTTUM / SIFIRLAMA MODÜLÜ
-  // =========================================================================
-
   async forgotPassword(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('Bu e-posta adresine ait kullanıcı bulunamadı.');
 
-    // 6 Haneli Rastgele Kod Üret
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    // Kodun geçerlilik süresi: Şu andan itibaren 15 dakika
     const expires = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Veritabanına Kaydet
     await this.prisma.user.update({
       where: { email },
       data: { resetCode: code, resetCodeExpires: expires },
     });
 
     try {
-      // Mevcut transporter ile mail gönderimi
       await this.transporter.sendMail({
         from: `"Planın" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER}>`,
         to: email,
         subject: '🔒 Şifre Sıfırlama Kodunuz',
         html: `
-          <div style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #171717; color: #fff; border-radius: 15px;">
-            <h2 style="color: #f59e0b;">Şifre Sıfırlama İsteği</h2>
+          <div style="font-family: Arial, sans-serif; text-align: center; padding: 30px; background-color: #1A1A1D; color: #F8F1E7; border-radius: 15px;">
+            <h2 style="color: #E8C9B5;">Şifre Sıfırlama İsteği</h2>
             <p style="font-size: 16px; color: #d1d5db;">Hesabınızın şifresini yenilemek için kodunuz:</p>
-            <div style="margin: 30px auto; padding: 15px; background-color: #0a0a0a; border: 2px dashed #f59e0b; width: fit-content; border-radius: 10px;">
-              <h1 style="color: #f59e0b; font-size: 48px; letter-spacing: 10px; margin: 0;">${code}</h1>
+            <div style="margin: 30px auto; padding: 15px; background-color: #1F1F23; border: 2px dashed #E8C9B5; width: fit-content; border-radius: 10px;">
+              <h1 style="color: #E8C9B5; font-size: 48px; letter-spacing: 10px; margin: 0;">${code}</h1>
             </div>
-            <p style="color: #666; font-size: 12px; margin-top: 20px;">Bu kod 15 dakika boyunca geçerlidir. Bu isteği siz yapmadıysanız lütfen bu e-postayı dikkate almayın.</p>
+            <p style="color: #666; font-size: 12px; margin-top: 20px;">Bu kod 15 dakika boyunca geçerlidir.</p>
           </div>
         `,
       });
 
       return { message: 'Kod başarıyla gönderildi.' };
-    } catch (error) {
-      console.error("Mail gönderme hatası:", error);
-      throw new BadRequestException('E-posta gönderilirken bir hata oluştu.');
+    } catch (error: any) { // 🎯 error: any olarak belirlemek en hızlı çözümdür
+      if (error.code === 'P2002') {
+        throw new ForbiddenException('Bu e-posta zaten kullanımda');
+      }
+      throw error;
     }
   }
 
@@ -215,19 +210,16 @@ export class AuthService {
     const { email, code, newPassword } = dto;
     const user = await this.prisma.user.findUnique({ where: { email } });
     
-    // Kod doğru mu ve süresi dolmamış mı kontrol et
     if (!user || user.resetCode !== code || !user.resetCodeExpires || user.resetCodeExpires < new Date()) {
       throw new BadRequestException('Geçersiz veya süresi dolmuş kod.');
     }
 
-    // Yeni şifreyi argon2 ile kriptola (Senin sistemin argon2 kullanıyor)
     const newHash = await argon.hash(newPassword);
 
-    // Yeni şifreyi kaydet ve eski kodları temizle (GÜVENLİK!)
     await this.prisma.user.update({
       where: { email },
       data: {
-        hash: newHash, // Senin tablon password değil, hash kullanıyor
+        hash: newHash,
         resetCode: null,
         resetCodeExpires: null,
       },

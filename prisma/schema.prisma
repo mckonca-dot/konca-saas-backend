@@ -1,212 +1,107 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
-// 🚀 SAAS ABONELİK PLANLARI
-enum PlanType {
-  TRIAL
-  BASIC
-  PRO
-  ULTRA
+  url       = env("DATABASE_URL")   // Bu 6543 olan (Normal çalışma için)
+  directUrl = env("DIRECT_URL")     // Bu 5432 olan (Migration için KRİTİK!)
 }
 
 model User {
-  id               Int       @id @default(autoincrement())
-  email            String    @unique
-  hash             String
-  firstName        String?
-  lastName         String?
+  id                    Int           @id @default(autoincrement())
+  email                 String        @unique
+  hash                  String        // 🎯 auth.service.ts ile uyumlu hale getirildi
+  fullName              String        // 🎯 Eksik olan fullName alanı eklendi
+  shopName              String
+  category              String?       // 🎯 İşletme kategorisi (Berber, Kuaför vb.)
+  slug                  String?       @unique
+  phone                 String?       @unique
+  tagline               String?
+  description           String?
+  logo                  String?
+  coverImage            String?
+  city                  String?
+  district              String?
+  addressTitle          String?
+  fullAddress           String?
+  address               String?
+  googleMapsUrl         String?
+  workStart             String        @default("09:00")
+  workEnd               String        @default("20:00")
+  instagram             String?
+  facebook              String?
+  twitter               String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  // WP Şablonları & Doğrulama
+  msgTemplateOnay       String?       @default("Merhaba {musteri_adi}, {salon_adi} için {tarih} {saat} randevunuz onaylanmıştır.")
+  msgTemplateIptal      String?       @default("Merhaba {musteri_adi}, {tarih} {saat} randevunuz iptal edilmiştir.")
+  msgTemplateHatirlatma String?       @default("Hatırlatma: {salon_adi} için {tarih} {saat} randevunuz yaklaşıyor.")
   
-  // 🏢 Dükkan Bilgileri
-  shopName         String?
-  // 🎯 SEO KRİTİK: Dükkanın URL ismi (örn: ahmet-kuafor-duzce)
-  slug             String?   @unique 
-  phone            String?
-  tagline          String?
-  description      String?
-  logo             String?
-  coverImage       String?
-  
+  verificationCode      String?
+  isVerified            Boolean       @default(false)
+  resetCode             String?
+  resetCodeExpires      DateTime?
 
-  // 📍 Adres Bilgileri
-  address          String?
-  addressTitle     String?
-  fullAddress      String?
-  city             String?
-  district         String?
-
-  googleMapsUrl    String?
-  
-  // 📱 Sosyal Medya
-  instagram        String?
-  facebook         String?
-  twitter          String?
-
-  // ⏰ Çalışma Saatleri
-  workStart        String?   @default("09:00")
-  workEnd          String?   @default("18:00")
-  
-  // 🚀 SAAS ABONELİK SİSTEMİ
-  plan             PlanType  @default(TRIAL)
-  trialEndsAt      DateTime? 
-  subscriptionEnd  DateTime? 
-  isVerified       Boolean   @default(false) 
-  verificationCode String?   
-  
-  // ⚙️ Mağaza Durumu 
-  isActive         Boolean   @default(true)
-  isPromoted       Boolean   @default(false)
-  isAdmin          Boolean   @default(false)
-
-  // 🔗 İlişkiler
-  services         Service[]
-  staff            Staff[]
-  appointments     Appointment[]
-  reviews          Review[]
-  galleryItems     GalleryItem[]
-  shopClosures     ShopClosure[]
-  staffLeaves      StaffLeave[]
-  customers        Customer[]
-  
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  // 🚀 WhatsApp & SMS Şablonları
-  msgTemplateOnay       String? @default("Merhaba [MUSTERI_ADI],\n\n[TARIH] günü saat [SAAT] için [ISLEM] randevunuz başarıyla oluşturulmuştur. ✂️\n\nBizi tercih ettiğiniz için teşekkür ederiz.\n📍 [DUKKAN_ADI]")
-  msgTemplateIptal      String? @default("Sayın [MUSTERI_ADI],\n\n[TARIH] - [SAAT] tarihli [ISLEM] randevunuz iptal edilmiştir. Yeni bir randevu oluşturmak için sitemizi ziyaret edebilirsiniz. 😔\n\nİyi günler dileriz.\n📍 [DUKKAN_ADI]")
-  msgTemplateHatirlatma String? @default("Merhaba [MUSTERI_ADI]! 🌟\n\nYarın saat [SAAT]'te [ISLEM] randevunuz olduğunu hatırlatmak isteriz. Görüşmek üzere!\n\n📍 [DUKKAN_ADI]")
-
-  resetCode         String?
-  resetCodeExpires  DateTime?
-
-  // 🚀 SEO İndeksi: Slug üzerinden aramaları hızlandırır
-  @@index([slug])
-  @@map("users")
+  // İlişkiler (Aşağıdaki modellere bağlanıyor)
+  services              Service[]
+  appointments          Appointment[]
+  customers             Customer[]
+  reviews               Review[]
 }
 
 model Service {
-  id           Int      @id @default(autoincrement())
-  name         String
-  duration     Int
-  price        Float
-  isActive     Boolean  @default(true)
-  
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  price       Float
+  duration    Int
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
   appointments Appointment[]
-
-  @@map("services")
-}
-
-model Staff {
-  id           Int      @id @default(autoincrement())
-  name         String
-  phone        String?
-  email        String?
-  imageUrl     String?
-  
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  appointments Appointment[]
-  staffLeaves  StaffLeave[]
-
-  @@map("staffs")
-}
-
-model Customer {
-  id           Int      @id @default(autoincrement())
-  name         String
-  phone        String
-  notes        String?
-  
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  appointments Appointment[]
-
-  @@map("customers")
 }
 
 model Appointment {
-  id              Int      @id @default(autoincrement())
-  dateTime        DateTime
-  status          String   @default("PENDING") 
-  cancelReason    String?
-  isReminderSent  Boolean  @default(false)
+  id          Int      @id @default(autoincrement())
+  customerName String
+  customerPhone String
+  date        DateTime
+  time        String
+  status      String   @default("pending")
+  notes       String?
+  
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  
+  serviceId   Int
+  service     Service  @relation(fields: [serviceId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
 
-  userId          Int
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  serviceId       Int
-  service         Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-  staffId         Int?
-  staff           Staff?   @relation(fields: [staffId], references: [id], onDelete: SetNull)
-
-  customerId      Int
-  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@map("appointments")
+model Customer {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phone       String
+  notes       String?
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Review {
-  id           Int      @id @default(autoincrement())
-  rating       Int
-  comment      String?
-  customerName String? 
-  
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt    DateTime @default(now())
-
-  @@map("reviews")
-}
-
-model GalleryItem {
   id          Int      @id @default(autoincrement())
-  imageUrl    String
-  modelName   String?
-  
+  customerName String
+  rating      Int
+  comment     String?
+  isPublished Boolean  @default(true)
   userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
-
-  @@map("gallery_items")
-}
-
-model ShopClosure {
-  id          Int      @id @default(autoincrement())
-  date        DateTime
-  reason      String?
-  
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("shop_closures")
-}
-
-model StaffLeave {
-  id          Int      @id @default(autoincrement())
-  date        DateTime
-  
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  staffId     Int
-  staff       Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
-
-  @@map("staff_leaves")
 }
