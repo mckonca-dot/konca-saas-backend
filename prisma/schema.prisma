@@ -39,6 +39,7 @@ model User {
   isAdmin           Boolean   @default(false)
   isPromoted        Boolean   @default(false) 
   instagram         String?
+  twitter           String?
   facebook          String?         
   plan              String    @default("TRIAL")
   trialEndsAt       DateTime?                 
