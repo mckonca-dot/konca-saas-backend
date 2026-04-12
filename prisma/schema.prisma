@@ -6,8 +6,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")   // Pooler URL (6543)
-  directUrl = env("DIRECT_URL")     // Direct URL (5432)
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -27,17 +27,20 @@ model User {
   district          String?
   addressTitle      String?
   fullAddress       String?
-  address           String?
   googleMapsUrl     String?
   workStart         String   @default("09:00")
   workEnd           String   @default("20:00")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  // Eksik Olan Alanlar (Loglardaki hataları çözer)
+  // 🎯 LOGLARDAKİ EKSİK ALANLAR (KRİTİK)
   isActive          Boolean   @default(true)
   isAdmin           Boolean   @default(false)
-  plan              String    @default("TRIAL") // TRIAL, BASIC, PRO vb.
+  isPromoted        Boolean   @default(false) // admin.service.ts hatasını çözer
+  instagram         String?                   // shop.service.ts hatasını çözer
+  plan              String    @default("TRIAL")
+  trialEndsAt       DateTime?                 // subscription-task hatasını çözer
+  subscriptionEnd   DateTime?                 // subscription-task hatasını çözer
 
   // WP Şablonları
   msgTemplateOnay   String?   @default("Merhaba {musteri_adi}, {salon_adi} için {tarih} {saat} randevunuz onaylanmıştır.")
@@ -54,14 +57,16 @@ model User {
   appointments  Appointment[]
   customers     Customer[]
   reviews       Review[]
-  staff         Staff[]         // 🎯 Eksikti, eklendi
-  galleryItems  GalleryItem[]   // 🎯 Eksikti, eklendi
-  shopClosures  ShopClosure[]   // 🎯 Eksikti, eklendi
+  staff         Staff[]
+  galleryItems  GalleryItem[]
+  shopClosures  ShopClosure[]
+  staffLeaves   StaffLeave[]    // 🎯 Logdaki toplu silme hatası için eklendi
 }
 
 model Staff {
   id          Int      @id @default(autoincrement())
   name        String
+  email       String?          // 🎯 staff.service.ts hatasını çözer
   phone       String?
   role        String?
   userId      Int
@@ -78,7 +83,7 @@ model Service {
   description String?
   price       Float
   duration    Int
-  isActive    Boolean  @default(true) // 🎯 Logda hata veriyordu, eklendi
+  isActive    Boolean  @default(true)
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   appointments Appointment[]
@@ -89,10 +94,11 @@ model Appointment {
   customerName  String
   customerPhone String
   date          DateTime
+  dateTime      DateTime @default(now()) // 🎯 appointment.service.ts hatasını çözer
   time          String
   status        String   @default("pending")
   notes         String?
-  isReminderSent Boolean @default(false) // 🎯 Logda hata veriyordu, eklendi
+  isReminderSent Boolean @default(false) // 🎯 reminder.service.ts hatasını çözer
   
   userId        Int
   user          User     @relation(fields: [userId], references: [id])
@@ -100,10 +106,10 @@ model Appointment {
   serviceId     Int
   service       Service  @relation(fields: [serviceId], references: [id])
 
-  customerId    Int?     // 🎯 Customer ile ilişki için eklendi
+  customerId    Int?
   customer      Customer? @relation(fields: [customerId], references: [id])
 
-  staffId       Int?     // 🎯 Personel seçimi için eklendi
+  staffId       Int?
   staff         Staff?   @relation(fields: [staffId], references: [id])
   
   createdAt     DateTime @default(now())
@@ -126,6 +132,7 @@ model GalleryItem {
   id          Int      @id @default(autoincrement())
   imageUrl    String
   title       String?
+  modelName   String?   // 🎯 gallery.service.ts hatasını çözer
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
@@ -142,6 +149,8 @@ model ShopClosure {
 model StaffLeave {
   id        Int      @id @default(autoincrement())
   date      DateTime
+  userId    Int?     // 🎯 app.controller.ts:96 hatasını çözer
+  user      User?    @relation(fields: [userId], references: [id])
   staffId   Int
   staff     Staff    @relation(fields: [staffId], references: [id])
 }
