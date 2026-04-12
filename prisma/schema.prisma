@@ -27,21 +27,24 @@ model User {
   district          String?
   addressTitle      String?
   fullAddress       String?
-  address           String?   // 🎯 KRİTİK: shop.service.ts:23 hatasını çözer
+  address           String?   
   googleMapsUrl     String?
   workStart         String   @default("09:00")
   workEnd           String   @default("20:00")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  // 🎯 KRİTİK EKSİK ALANLAR (Hataları bitiren kısım)
   isActive          Boolean   @default(true)
   isAdmin           Boolean   @default(false)
-  isPromoted        Boolean   @default(false)
+  isPromoted        Boolean   @default(false) 
   instagram         String?
+  facebook          String?         
   plan              String    @default("TRIAL")
-  trialEndsAt       DateTime?
-  subscriptionEnd   DateTime?
+  trialEndsAt       DateTime?                 
+  subscriptionEnd   DateTime?                 
 
+  // WP Şablonları
   msgTemplateOnay   String?   @default("Merhaba {musteri_adi}, {salon_adi} için {tarih} {saat} randevunuz onaylanmıştır.")
   msgTemplateIptal  String?   @default("Merhaba {musteri_adi}, {tarih} {saat} randevunuz iptal edilmiştir.")
   msgTemplateHatirlatma String? @default("Hatırlatma: {salon_adi} için {tarih} {saat} randevunuz yaklaşıyor.")
@@ -51,6 +54,7 @@ model User {
   resetCode         String?
   resetCodeExpires  DateTime?
 
+  // İlişkiler
   services      Service[]
   appointments  Appointment[]
   customers     Customer[]
@@ -58,13 +62,13 @@ model User {
   staff         Staff[]
   galleryItems  GalleryItem[]
   shopClosures  ShopClosure[]
-  staffLeaves   StaffLeave[]
+  staffLeaves   StaffLeave[]    
 }
 
 model Staff {
   id          Int      @id @default(autoincrement())
   name        String
-  email       String?
+  email       String?          
   phone       String?
   role        String?
   userId      Int
@@ -89,16 +93,14 @@ model Service {
 
 model Appointment {
   id            Int      @id @default(autoincrement())
-  // Bu alanlar kodunla uyum için opsiyonel kalmalı
   customerName  String?
   customerPhone String?
   date          DateTime?
+  dateTime      DateTime @default(now()) 
   time          String?
-  
-  dateTime      DateTime @default(now())
   status        String   @default("pending")
   notes         String?
-  isReminderSent Boolean @default(false)
+  isReminderSent Boolean @default(false) 
   
   userId        Int
   user          User     @relation(fields: [userId], references: [id])
@@ -106,8 +108,7 @@ model Appointment {
   serviceId     Int
   service       Service  @relation(fields: [serviceId], references: [id])
 
-  // 🎯 BURASI KRİTİK: İkisi de opsiyonel ( ? ) olmalı
-  customerId    Int?     
+  customerId    Int?
   customer      Customer? @relation(fields: [customerId], references: [id])
 
   staffId       Int?
@@ -133,7 +134,7 @@ model GalleryItem {
   id          Int      @id @default(autoincrement())
   imageUrl    String
   title       String?
-  modelName   String?
+  modelName   String?   
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
@@ -150,7 +151,7 @@ model ShopClosure {
 model StaffLeave {
   id        Int      @id @default(autoincrement())
   date      DateTime
-  userId    Int?
+  userId    Int?     
   user      User?    @relation(fields: [userId], references: [id])
   staffId   Int
   staff     Staff    @relation(fields: [staffId], references: [id])

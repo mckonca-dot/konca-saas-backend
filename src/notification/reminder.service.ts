@@ -12,15 +12,12 @@ export class ReminderService {
     private notificationService: NotificationService,
   ) {}
 
-  // 🚀 Her 1 dakikada bir çalışıp yaklaşan randevuları tarayan robot
   @Cron(CronExpression.EVERY_MINUTE)
   async checkUpcomingAppointments() {
     try {
       const now = new Date();
-      // Şu andan itibaren 30 dakika sonrası
       const thirtyMinsLater = new Date(now.getTime() + 30 * 60000);
 
-      // Başlamasına 30 dakika veya daha az kalmış ve HENÜZ HATIRLATMA GİTMEMİŞ randevuları bul
       const upcomingAppointments = await this.prisma.appointment.findMany({
         where: {
           dateTime: {
@@ -28,18 +25,20 @@ export class ReminderService {
             lte: thirtyMinsLater,
           },
           status: 'CONFIRMED',
-          isReminderSent: false, // Sadece gitmeyenler
+          isReminderSent: false,
         },
         include: {
           customer: true,
           staff: true,
           service: true,
-          user: true, // Dükkan bilgisi
+          user: true, 
         },
       });
 
       for (const app of upcomingAppointments) {
-        // Saati Türkiye formatında şık bir şekilde yazdır (Örn: 14:30)
+        // 🎯 GÜVENLİK: dateTime yoksa atla
+        if (!app.dateTime) continue;
+
         const timeStr = app.dateTime.toLocaleTimeString('tr-TR', {
           timeZone: 'Europe/Istanbul',
           hour: '2-digit',
@@ -47,18 +46,20 @@ export class ReminderService {
         });
 
         // 1️⃣ MÜŞTERİYE BİLDİRİM
-        if (app.customer?.phone) {
-          const customerMsg = `⏳ *Hatırlatma:* Sayın ${app.customer.name}, ${app.user.shopName} dükkanındaki ${app.service.name} randevunuza 30 dakika kalmıştır. Saat ${timeStr}'da sizi bekliyoruz!`;
+        if (app.customer && app.customer.phone) {
+          // 🎯 customer?.name || 'Müşteri' kullanımı TS hatasını kökten çözer
+          const customerMsg = `⏳ *Hatırlatma:* Sayın ${app.customer?.name || 'Müşteri'}, ${app.user.shopName} dükkanındaki ${app.service.name} randevunuza 30 dakika kalmıştır. Saat ${timeStr}'da sizi bekliyoruz!`;
           await this.notificationService.sendMessage(app.userId, app.customer.phone, customerMsg);
         }
 
         // 2️⃣ PERSONELE (USTAYA) BİLDİRİM
-        if (app.staff?.phone) {
-          const staffMsg = `🔔 *Randevu Alarmı:* Usta, saat ${timeStr}'da ${app.customer.name} ile ${app.service.name} randevunuz var. Yaklaşık 30 dakika kaldı, hazırlıklı olun!`;
+        if (app.staff && app.staff.phone) {
+          // 🎯 Burada da müşteri ismini güvenli bir şekilde çekiyoruz
+          const staffMsg = `🔔 *Randevu Alarmı:* Usta, saat ${timeStr}'da ${app.customer?.name || 'Müşteri'} ile ${app.service.name} randevunuz var. Yaklaşık 30 dakika kaldı, hazırlıklı olun!`;
           await this.notificationService.sendMessage(app.userId, app.staff.phone, staffMsg);
         }
 
-        // 3️⃣ VERİTABANINI GÜNCELLE (Bir daha göndermesin)
+        // 3️⃣ GÜNCELLEME
         await this.prisma.appointment.update({
           where: { id: app.id },
           data: { isReminderSent: true },

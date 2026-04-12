@@ -236,6 +236,17 @@ export class PublicService {
 
     const newAppointment = await this.prisma.appointment.create({
       data: {
+        // 🎯 PRISMA'NIN İSTEDİĞİ ZORUNLU ALANLAR (Hataları çözer)
+        customerName: customer.name || "Bilinmiyor", 
+        customerPhone: customer.phone || "",
+        date: new Date(dateTime),
+        time: new Date(dateTime).toLocaleTimeString('tr-TR', { 
+          timeZone: 'Europe/Istanbul', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+
+        // 🎯 SENİN MEVCUT ALANLARIN
         dateTime: new Date(dateTime),
         status: 'CONFIRMED',
         customer: { connect: { id: customer.id } },
