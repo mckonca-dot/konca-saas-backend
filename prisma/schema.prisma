@@ -6,52 +6,70 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")   // Bu 6543 olan (Normal çalışma için)
-  directUrl = env("DIRECT_URL")     // Bu 5432 olan (Migration için KRİTİK!)
+  url       = env("DATABASE_URL")   // Pooler URL (6543)
+  directUrl = env("DIRECT_URL")     // Direct URL (5432)
 }
 
 model User {
-  id                    Int           @id @default(autoincrement())
-  email                 String        @unique
-  hash                  String        // 🎯 auth.service.ts ile uyumlu hale getirildi
-  fullName              String        // 🎯 Eksik olan fullName alanı eklendi
-  shopName              String
-  category              String?       // 🎯 İşletme kategorisi (Berber, Kuaför vb.)
-  slug                  String?       @unique
-  phone                 String?       @unique
-  tagline               String?
-  description           String?
-  logo                  String?
-  coverImage            String?
-  city                  String?
-  district              String?
-  addressTitle          String?
-  fullAddress           String?
-  address               String?
-  googleMapsUrl         String?
-  workStart             String        @default("09:00")
-  workEnd               String        @default("20:00")
-  instagram             String?
-  facebook              String?
-  twitter               String?
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  id                Int      @id @default(autoincrement())
+  email             String   @unique
+  hash              String
+  fullName          String
+  shopName          String
+  category          String?
+  slug              String?   @unique
+  phone             String?   @unique
+  tagline           String?
+  description       String?
+  logo              String?
+  coverImage        String?
+  city              String?
+  district          String?
+  addressTitle      String?
+  fullAddress       String?
+  address           String?
+  googleMapsUrl     String?
+  workStart         String   @default("09:00")
+  workEnd           String   @default("20:00")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  // WP Şablonları & Doğrulama
-  msgTemplateOnay       String?       @default("Merhaba {musteri_adi}, {salon_adi} için {tarih} {saat} randevunuz onaylanmıştır.")
-  msgTemplateIptal      String?       @default("Merhaba {musteri_adi}, {tarih} {saat} randevunuz iptal edilmiştir.")
-  msgTemplateHatirlatma String?       @default("Hatırlatma: {salon_adi} için {tarih} {saat} randevunuz yaklaşıyor.")
+  // Eksik Olan Alanlar (Loglardaki hataları çözer)
+  isActive          Boolean   @default(true)
+  isAdmin           Boolean   @default(false)
+  plan              String    @default("TRIAL") // TRIAL, BASIC, PRO vb.
+
+  // WP Şablonları
+  msgTemplateOnay   String?   @default("Merhaba {musteri_adi}, {salon_adi} için {tarih} {saat} randevunuz onaylanmıştır.")
+  msgTemplateIptal  String?   @default("Merhaba {musteri_adi}, {tarih} {saat} randevunuz iptal edilmiştir.")
+  msgTemplateHatirlatma String? @default("Hatırlatma: {salon_adi} için {tarih} {saat} randevunuz yaklaşıyor.")
   
-  verificationCode      String?
-  isVerified            Boolean       @default(false)
-  resetCode             String?
-  resetCodeExpires      DateTime?
+  verificationCode  String?
+  isVerified        Boolean   @default(false)
+  resetCode         String?
+  resetCodeExpires  DateTime?
 
-  // İlişkiler (Aşağıdaki modellere bağlanıyor)
-  services              Service[]
-  appointments          Appointment[]
-  customers             Customer[]
-  reviews               Review[]
+  // İlişkiler
+  services      Service[]
+  appointments  Appointment[]
+  customers     Customer[]
+  reviews       Review[]
+  staff         Staff[]         // 🎯 Eksikti, eklendi
+  galleryItems  GalleryItem[]   // 🎯 Eksikti, eklendi
+  shopClosures  ShopClosure[]   // 🎯 Eksikti, eklendi
+}
+
+model Staff {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phone       String?
+  role        String?
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  appointments Appointment[]
+  leaves      StaffLeave[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Service {
@@ -60,28 +78,36 @@ model Service {
   description String?
   price       Float
   duration    Int
+  isActive    Boolean  @default(true) // 🎯 Logda hata veriyordu, eklendi
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   appointments Appointment[]
 }
 
 model Appointment {
-  id          Int      @id @default(autoincrement())
-  customerName String
+  id            Int      @id @default(autoincrement())
+  customerName  String
   customerPhone String
-  date        DateTime
-  time        String
-  status      String   @default("pending")
-  notes       String?
+  date          DateTime
+  time          String
+  status        String   @default("pending")
+  notes         String?
+  isReminderSent Boolean @default(false) // 🎯 Logda hata veriyordu, eklendi
   
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id])
   
-  serviceId   Int
-  service     Service  @relation(fields: [serviceId], references: [id])
+  serviceId     Int
+  service       Service  @relation(fields: [serviceId], references: [id])
+
+  customerId    Int?     // 🎯 Customer ile ilişki için eklendi
+  customer      Customer? @relation(fields: [customerId], references: [id])
+
+  staffId       Int?     // 🎯 Personel seçimi için eklendi
+  staff         Staff?   @relation(fields: [staffId], references: [id])
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Customer {
@@ -91,17 +117,42 @@ model Customer {
   notes       String?
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
+  appointments Appointment[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-model Review {
+model GalleryItem {
   id          Int      @id @default(autoincrement())
-  customerName String
-  rating      Int
-  comment     String?
-  isPublished Boolean  @default(true)
+  imageUrl    String
+  title       String?
   userId      Int
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
+}
+
+model ShopClosure {
+  id        Int      @id @default(autoincrement())
+  reason    String?
+  date      DateTime
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model StaffLeave {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  staffId   Int
+  staff     Staff    @relation(fields: [staffId], references: [id])
+}
+
+model Review {
+  id           Int      @id @default(autoincrement())
+  customerName String
+  rating       Int
+  comment      String?
+  isPublished  Boolean  @default(true)
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
 }
