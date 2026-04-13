@@ -41,7 +41,6 @@
     "helmet": "^8.1.0",
     "iyzipay": "^2.0.65",
     "lucide-react": "^0.562.0",
-    "nodemailer": "^7.0.13",
     "openai": "^6.16.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
@@ -51,6 +50,7 @@
     "qrcode": "^1.5.4",
     "recharts": "^3.6.0",
     "reflect-metadata": "^0.2.2",
+    "resend": "^6.11.0",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {

@@ -5,31 +5,19 @@ import { AuthDto } from './dto';
 import * as argon from 'argon2';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend'; // 🎯 Nodemailer gitti, Resend geldi!
 
 @Injectable()
 export class AuthService {
-  private transporter;
+  private resend: Resend;
 
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
   ) {
-    // 🎯 TİMEOUT HATASINI ÇÖZEN AÇIK SMTP AYARLARI (RENDER İÇİN OPTİMİZE)
-    this.transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,              // 🎯 465 yerine 587 kullanıyoruz (Render'da daha az engellenir)
-      secure: false,          // 🎯 587 portu için false olmalı (STARTTLS kullanır)
-      auth: {
-        user: this.config.get('EMAIL_USER') || process.env.EMAIL_USER || 'muhammetkoncaa@gmail.com',
-        pass: this.config.get('EMAIL_PASS') || process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false // 🎯 Render sunucularında SSL takılmasını önler
-      },
-      connectionTimeout: 15000, 
-    });
+    // 🎯 Tek satırda API bağlantısı! Port yok, timeout yok.
+    this.resend = new Resend(this.config.get('RESEND_API_KEY') || process.env.RESEND_API_KEY);
   }
 
   // 🚀 SİHİRLİ FONKSİYON: Türkçe Karakterleri ve Boşlukları Temizler
@@ -96,10 +84,10 @@ export class AuthService {
         },
       });
 
-      // 2. Mail Gönderimi
+      // 🎯 2. Mail Gönderimi (RESEND İLE)
       try {
-        await this.transporter.sendMail({
-          from: `"Planın" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER || 'muhammetkoncaa@gmail.com'}>`,
+        await this.resend.emails.send({
+          from: 'Planın <onboarding@resend.dev>', // 🚨 Domain onaylanana kadar burası böyle kalmalı
           to: user.email,
           subject: 'Planın - E-Posta Doğrulama Kodu',
           html: `
@@ -115,11 +103,10 @@ export class AuthService {
 
         return { message: 'Doğrulama kodu gönderildi', email: user.email };
       } catch (mailError) {
-        console.error("Mail Hatası (Bypass edildi):", mailError);
+        console.error("Resend Mail Hatası (Bypass edildi):", mailError);
         
-        // 🎯 PATRON ÇÖZÜMÜ: Eğer mail zaman aşımına uğrarsa (Render sorunu) 
-        // kullanıcıyı silip 403 vermek yerine, hesabını otomatik onaylıyoruz.
-        // Böylece frontend donup kalmaz, direkt giriş yapabilirsin.
+        // 🎯 BYPASS MANTIĞI: Eğer test aşamasında başka bir maile atmaya çalışıp hata alırsan
+        // sistem kilitlenmez, kullanıcıyı otomatik onaylar.
         await this.prisma.user.update({
           where: { id: user.id },
           data: { isVerified: true, verificationCode: null } 
@@ -130,7 +117,7 @@ export class AuthService {
 
     } catch (error: any) { 
       if (error.code === 'P2002') {
-        throw new ForbiddenException('Bu e-posta zaten kullanımda');
+        throw new ForbiddenException('Bu e-posta veya dükkan adı zaten kullanımda');
       }
       throw error;
     }
@@ -189,8 +176,9 @@ export class AuthService {
     });
 
     try {
-      await this.transporter.sendMail({
-        from: `"Planın" <${this.config.get('EMAIL_USER') || process.env.EMAIL_USER || 'muhammetkoncaa@gmail.com'}>`,
+      // 🎯 Şifre Sıfırlama Maili (RESEND İLE)
+      await this.resend.emails.send({
+        from: 'Planın <onboarding@resend.dev>', // 🚨 Domain onaylanana kadar burası böyle kalmalı
         to: email,
         subject: '🔒 Şifre Sıfırlama Kodunuz',
         html: `
@@ -207,10 +195,7 @@ export class AuthService {
 
       return { message: 'Kod başarıyla gönderildi.' };
     } catch (error: any) { 
-      if (error.code === 'P2002') {
-        throw new ForbiddenException('Bu e-posta zaten kullanımda');
-      }
-      throw error;
+      throw new ForbiddenException('Mail gönderilemedi.');
     }
   }
 
