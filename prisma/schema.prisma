@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,151 +9,139 @@ datasource db {
 }
 
 model User {
-  id                Int      @id @default(autoincrement())
-  email             String   @unique
-  hash              String
-  fullName          String
-  shopName          String
-  category          String?
-  slug              String?   @unique
-  phone             String?   @unique
-  tagline           String?
-  description       String?
-  logo              String?
-  coverImage        String?
-  city              String?
-  district          String?
-  addressTitle      String?
-  fullAddress       String?
-  address           String?   
-  googleMapsUrl     String?
-  workStart         String   @default("09:00")
-  workEnd           String   @default("20:00")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // 🎯 KRİTİK EKSİK ALANLAR (Hataları bitiren kısım)
-  isActive          Boolean   @default(true)
-  isAdmin           Boolean   @default(false)
-  isPromoted        Boolean   @default(false) 
-  instagram         String?
-  twitter           String?
-  facebook          String?         
-  plan              String    @default("TRIAL")
-  trialEndsAt       DateTime?                 
-  subscriptionEnd   DateTime?                 
-
-  // WP Şablonları
-  msgTemplateOnay   String?   @default("Merhaba {musteri_adi}, {salon_adi} için {tarih} {saat} randevunuz onaylanmıştır.")
-  msgTemplateIptal  String?   @default("Merhaba {musteri_adi}, {tarih} {saat} randevunuz iptal edilmiştir.")
-  msgTemplateHatirlatma String? @default("Hatırlatma: {salon_adi} için {tarih} {saat} randevunuz yaklaşıyor.")
-  
-  verificationCode  String?
-  isVerified        Boolean   @default(false)
-  resetCode         String?
-  resetCodeExpires  DateTime?
-
-  // İlişkiler
-  services      Service[]
-  appointments  Appointment[]
-  customers     Customer[]
-  reviews       Review[]
-  staff         Staff[]
-  galleryItems  GalleryItem[]
-  shopClosures  ShopClosure[]
-  staffLeaves   StaffLeave[]    
+  id                    Int           @id @default(autoincrement())
+  email                 String        @unique
+  hash                  String
+  fullName              String?
+  shopName              String
+  category              String?
+  slug                  String?       @unique
+  phone                 String?       @unique
+  tagline               String?
+  description           String?
+  logo                  String?
+  coverImage            String?
+  city                  String?
+  district              String?
+  addressTitle          String?
+  fullAddress           String?
+  address               String?
+  googleMapsUrl         String?
+  workStart             String        @default("09:00")
+  workEnd               String        @default("20:00")
+  instagram             String?
+  facebook              String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  msgTemplateOnay       String?       @default("Merhaba {musteri_adi}, {salon_adi} için {tarih} {saat} randevunuz onaylanmıştır.")
+  msgTemplateIptal      String?       @default("Merhaba {musteri_adi}, {tarih} {saat} randevunuz iptal edilmiştir.")
+  msgTemplateHatirlatma String?       @default("Hatırlatma: {salon_adi} için {tarih} {saat} randevunuz yaklaşıyor.")
+  verificationCode      String?
+  isVerified            Boolean       @default(false)
+  resetCode             String?
+  resetCodeExpires      DateTime?
+  isActive              Boolean       @default(true)
+  isAdmin               Boolean       @default(false)
+  isPromoted            Boolean       @default(false)
+  plan                  String        @default("TRIAL")
+  subscriptionEnd       DateTime?
+  trialEndsAt           DateTime?
+  twitter               String?
+  appointments          Appointment[]
+  customers             Customer[]
+  galleryItems          GalleryItem[]
+  reviews               Review[]
+  services              Service[]
+  shopClosures          ShopClosure[]
+  staff                 Staff[]
+  staffLeaves           StaffLeave[]
 }
 
 model Staff {
-  id          Int      @id @default(autoincrement())
-  name        String
-  email       String?          
-  phone       String?
-  role        String?
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  id           Int           @id @default(autoincrement())
+  name         String
+  email        String?
+  phone        String?
+  role         String?
+  userId       Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   appointments Appointment[]
-  leaves      StaffLeave[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  user         User          @relation(fields: [userId], references: [id])
+  leaves       StaffLeave[]
 }
 
 model Service {
-  id          Int      @id @default(autoincrement())
-  name        String
-  description String?
-  price       Float
-  duration    Int
-  isActive    Boolean  @default(true)
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  id           Int           @id @default(autoincrement())
+  name         String
+  description  String?
+  price        Float
+  duration     Int
+  userId       Int
+  isActive     Boolean       @default(true)
   appointments Appointment[]
+  user         User          @relation(fields: [userId], references: [id])
 }
 
 model Appointment {
-  id            Int      @id @default(autoincrement())
-  customerName  String?
-  customerPhone String?
-  date          DateTime?
-  dateTime      DateTime @default(now()) 
-  time          String?
-  status        String   @default("pending")
-  notes         String?
-  isReminderSent Boolean @default(false) 
-  
-  userId        Int
-  user          User     @relation(fields: [userId], references: [id])
-  
-  serviceId     Int
-  service       Service  @relation(fields: [serviceId], references: [id])
-
-  customerId    Int?
-  customer      Customer? @relation(fields: [customerId], references: [id])
-
-  staffId       Int?
-  staff         Staff?   @relation(fields: [staffId], references: [id])
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             Int       @id @default(autoincrement())
+  customerName   String?
+  customerPhone  String?
+  date           DateTime?
+  time           String?
+  status         String    @default("pending")
+  notes          String?
+  userId         Int
+  serviceId      Int
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  customerId     Int?
+  dateTime       DateTime  @default(now())
+  isReminderSent Boolean   @default(false)
+  staffId        Int?
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  service        Service   @relation(fields: [serviceId], references: [id])
+  staff          Staff?    @relation(fields: [staffId], references: [id])
+  user           User      @relation(fields: [userId], references: [id])
 }
 
 model Customer {
-  id          Int      @id @default(autoincrement())
-  name        String
-  phone       String
-  notes       String?
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  id           Int           @id @default(autoincrement())
+  name         String
+  phone        String
+  notes        String?
+  userId       Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   appointments Appointment[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  user         User          @relation(fields: [userId], references: [id])
 }
 
 model GalleryItem {
-  id          Int      @id @default(autoincrement())
-  imageUrl    String
-  title       String?
-  modelName   String?   
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
-  createdAt   DateTime @default(now())
-}
-
-model ShopClosure {
   id        Int      @id @default(autoincrement())
-  reason    String?
-  date      DateTime
+  imageUrl  String
+  title     String?
+  modelName String?
   userId    Int
+  createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
 }
 
+model ShopClosure {
+  id     Int      @id @default(autoincrement())
+  reason String?
+  date   DateTime
+  userId Int
+  user   User     @relation(fields: [userId], references: [id])
+}
+
 model StaffLeave {
-  id        Int      @id @default(autoincrement())
-  date      DateTime
-  userId    Int?     
-  user      User?    @relation(fields: [userId], references: [id])
-  staffId   Int
-  staff     Staff    @relation(fields: [staffId], references: [id])
+  id      Int      @id @default(autoincrement())
+  date    DateTime
+  userId  Int?
+  staffId Int
+  staff   Staff    @relation(fields: [staffId], references: [id])
+  user    User?    @relation(fields: [userId], references: [id])
 }
 
 model Review {
@@ -165,6 +151,6 @@ model Review {
   comment      String?
   isPublished  Boolean  @default(true)
   userId       Int
-  user         User     @relation(fields: [userId], references: [id])
   createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id])
 }

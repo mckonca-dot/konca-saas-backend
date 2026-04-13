@@ -1,25 +1,25 @@
 // src/auth/dto/auth.dto.ts
-import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional } from 'class-validator';
 
 export class AuthDto {
-  @IsEmail()
-  @IsNotEmpty()
-  email!: string; // 🎯 '!' ekledik
+  @IsEmail({}, { message: 'Lütfen geçerli bir e-posta adresi giriniz.' })
+  @IsNotEmpty({ message: 'E-posta alanı boş bırakılamaz.' })
+  email!: string; // 🎯 Giriş ve Kayıt için ZORUNLU
 
   @IsString()
-  @IsNotEmpty()
-  @MinLength(6)
-  password!: string; // 🎯 '!' ekledik
+  @IsNotEmpty({ message: 'Şifre alanı boş bırakılamaz.' })
+  @MinLength(6, { message: 'Şifreniz en az 6 karakter olmalıdır.' })
+  password!: string; // 🎯 Giriş ve Kayıt için ZORUNLU
 
   @IsString()
-  @IsNotEmpty()
-  fullName!: string; // 🎯 '!' ekledik
+  @IsOptional()
+  fullName?: string; // 🎯 Sadece kayıt olurken gelir, giriş yaparken aranmaz (?)
 
   @IsString()
-  @IsNotEmpty()
-  shopName!: string; // 🎯 '!' ekledik
+  @IsOptional()
+  shopName?: string; // 🎯 Sadece kayıt olurken gelir, giriş yaparken aranmaz (?)
 
   @IsString()
-  @IsNotEmpty()
-  category!: string; // 🎯 '!' ekledik
+  @IsOptional()
+  category?: string; // 🎯 Sadece kayıt olurken gelir, giriş yaparken aranmaz (?)
 }
