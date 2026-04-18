@@ -87,7 +87,7 @@ export class AuthService {
       // 🎯 2. Mail Gönderimi (RESEND İLE)
       try {
         await this.resend.emails.send({
-          from: 'Planın <onboarding@resend.dev>', // 🚨 Domain onaylanana kadar burası böyle kalmalı
+          from: 'Planın <bilgi@planin.com.tr>', // 🚨 Domain onaylanana kadar burası böyle kalmalı
           to: user.email,
           subject: 'Planın - E-Posta Doğrulama Kodu',
           html: `
@@ -178,7 +178,7 @@ export class AuthService {
     try {
       // 🎯 Şifre Sıfırlama Maili (RESEND İLE)
       await this.resend.emails.send({
-        from: 'Planın <onboarding@resend.dev>', // 🚨 Domain onaylanana kadar burası böyle kalmalı
+        from: 'Planın <bilgi@planin.com.tr>', // 🚨 Domain onaylanana kadar burası böyle kalmalı
         to: email,
         subject: '🔒 Şifre Sıfırlama Kodunuz',
         html: `
