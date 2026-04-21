@@ -69,4 +69,37 @@ export class PaymentService {
 
     return html;
   }
+
+  // Shopier Callback İmza Doğrulaması
+  verifyShopierSignature(body: any): boolean {
+    const { random_nr, platform_order_id, total_order_value, currency, signature } = body;
+    const dataToHash = (random_nr || '') + (platform_order_id || '') + (total_order_value || '') + (currency || '');
+    const expectedSignature = crypto.createHmac('sha256', this.API_SECRET).update(dataToHash).digest('base64');
+    return signature === expectedSignature;
+  }
+
+  // Kullanıcı Aboneliğini Uzatma
+  async extendSubscription(userId: string, plan: string) {
+    const parsedId = parseInt(userId, 10);
+    if (isNaN(parsedId)) return null;
+
+    const user = await this.prisma.user.findUnique({ where: { id: parsedId } });
+    if (!user) return null;
+    
+    const now = new Date();
+    // Eğer mevcut abonelik hala devam ediyorsa onun üzerine ekle, bittiyse bugünden itibaren 1 ay ekle
+    let currentEnd = (user as any).subscriptionEnd ? new Date((user as any).subscriptionEnd) : now;
+    if (currentEnd < now) currentEnd = now;
+
+    const nextMonth = new Date(currentEnd);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+    return this.prisma.user.update({
+      where: { id: parsedId },
+      data: {
+        subscriptionEnd: nextMonth,
+        plan: plan || 'PRO'
+      } as any
+    });
+  }
 }
