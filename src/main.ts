@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
+import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -22,6 +23,9 @@ async function bootstrap() {
   });
   // 🚨 NOT: Agresif ValidationPipe kalkanını kaldırdık çünkü esnek veri (any) yapımızı blokluyordu.
   // Sitemiz Prisma ORM kullandığı için SQL Injection saldırılarına karşı zaten doğal olarak %100 korumalıdır!
+
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   await app.listen(process.env.PORT || 3001);
   console.log(`🛡️ KALE KAPILARI AÇILDI! Sunucu ${process.env.PORT || 3001} portunda çalışıyor.`);
