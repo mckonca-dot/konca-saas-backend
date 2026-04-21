@@ -35,7 +35,7 @@ export class PaymentService {
       </head>
       <body>
           <div>Shopier Güvenli Ödeme Sayfasına Aktarılıyorsunuz... Lütfen Bekleyin 🚀</div>
-          <form id="shopier_form" method="post" action="https://shopier.com/ShowProduct/api_payit.php">
+          <form id="shopier_form" method="post" action="https://www.shopier.com/ShowProduct/api_pay4.php">
               <input type="hidden" name="API_key" value="${this.API_KEY}">
               <input type="hidden" name="website_index" value="1">
               <input type="hidden" name="platform_order_id" value="${orderId}">
