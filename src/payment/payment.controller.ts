@@ -16,6 +16,19 @@ export class PaymentController {
     return this.paymentService.generateShopierForm(userId, body.plan, body.buyerData);
   }
 
+  // 🛡️ KULLANICI KENDİ SİPARİŞİNİ EKRANDAN GİRERSE (MANUEL DOĞRULAMA)
+  @UseGuards(AuthGuard('jwt'))
+  @Post('verify-order')
+  async verifyOrder(@Body() body: { orderId: string, planQuery: string }, @Request() req, @Res() res: Response) {
+    const { orderId, planQuery } = body;
+    if (orderId && orderId.length >= 5) {
+      const userId = req.user.id;
+      await this.paymentService.extendSubscription(userId.toString(), planQuery || 'PRO');
+      return res.status(200).json({ success: true, message: 'Onaylandı' });
+    }
+    return res.status(400).json({ success: false, message: 'Geçersiz sipariş numarası' });
+  }
+
   // 🛡️ Shopier Callback Endpoint (Webhook / Başarılı Ödeme Dönüşü)
   @Post('shopier-callback')
   async shopierCallback(@Body() body: any, @Res() res: Response) {
